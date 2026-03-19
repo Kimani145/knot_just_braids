@@ -32,16 +32,40 @@ function ClientView({
 
       <div className="socials-bar">
         <span>Find us →</span>
-        <a className="s-icon s-ig" href="#" title="Instagram">
+        <a
+          className="s-icon s-ig"
+          href="https://instagram.com/knotjust"
+          title="Instagram"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           📸
         </a>
-        <a className="s-icon s-snap" href="#" title="Snapchat">
+        <a
+          className="s-icon s-snap"
+          href="https://snapchat.com/add/knotjust"
+          title="Snapchat"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           👻
         </a>
-        <a className="s-icon s-tt" href="#" title="TikTok">
+        <a
+          className="s-icon s-tt"
+          href="https://tiktok.com/@knotjust"
+          title="TikTok"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           🎵
         </a>
-        <a className="s-icon s-wa" href="#" title="WhatsApp">
+        <a
+          className="s-icon s-wa"
+          href="https://wa.me/254768411265?text=Hi!%20I'm%20reaching%20out%20from%20the%20Knot%20Just%20website."
+          title="WhatsApp"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           💬
         </a>
       </div>

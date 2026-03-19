@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { onAuthStateChanged, signOut as signOutAuth } from 'firebase/auth'
 import { collection, onSnapshot } from 'firebase/firestore'
-import { SpeedInsights } from "@vercel/speed-insights/next"
+import { SpeedInsights } from '@vercel/speed-insights/react'
 import Navigation from './components/layout/Navigation'
 import FeedToggle from './components/layout/FeedToggle'
 import Footer from './components/layout/Footer'
@@ -258,6 +258,11 @@ function App() {
     setCart([])
   }
 
+  const switchToAdmin = () => {
+    window.history.pushState({}, '', '/admin')
+    setCurrentView('admin')
+  }
+
   const handleLogoClick = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -343,7 +348,7 @@ function App() {
           onBook={handleBookStyle}
           onAddToCart={handleAddToCart}
         />
-        <Footer />
+        <Footer onSwitchToAdmin={switchToAdmin} />
       </div>
 
       <div

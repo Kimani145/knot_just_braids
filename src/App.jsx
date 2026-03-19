@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { onAuthStateChanged, signOut as signOutAuth } from 'firebase/auth'
 import { collection, onSnapshot } from 'firebase/firestore'
+import { SpeedInsights } from "@vercel/speed-insights/next"
 import Navigation from './components/layout/Navigation'
 import FeedToggle from './components/layout/FeedToggle'
 import Footer from './components/layout/Footer'
@@ -320,6 +321,7 @@ function App() {
 
   return (
     <>
+      <SpeedInsights />
       <div
         id="view-client"
         className={`view${currentView === 'client' ? ' active' : ''}`}

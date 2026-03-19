@@ -1,12 +1,28 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  serverTimestamp,
+  updateDoc,
+} from 'firebase/firestore'
 import AdminPanel from './AdminPanel'
 import StatsRow from './StatsRow'
 import ImageUploader from './ImageUploader'
 import AdminGallery from './AdminGallery'
+import SecurityDialog from './SecurityDialog'
 import formatCurrency from '../../utils/formatCurrency'
-
-const salonBgs = ['sg1', 'sg2', 'sg3', 'sg4', 'sg5', 'sg6']
-const beadBgs = ['bg1', 'bg2', 'bg3', 'bg4', 'bg5', 'bg6']
+import { SkeletonRow } from '../layout/Skeletons'
+import { db } from '../../firebase'
+import {
+  BEAD_BACKGROUNDS,
+  BEAD_PRODUCTS_COLLECTION,
+  BOOKINGS_COLLECTION,
+  ORDERS_COLLECTION,
+  SALON_BACKGROUNDS,
+  SALON_STYLES_COLLECTION,
+} from '../../constants/catalog'
 
 const initialSalonForm = {
   name: '',
@@ -28,6 +44,17 @@ const initialBeadForm = {
   image: null,
 }
 
+const initialInventoryEditForm = {
+  id: '',
+  type: 'salon',
+  name: '',
+  price: '',
+  priceDisplay: '',
+  duration: '',
+  stock: '',
+  desc: '',
+}
+
 const normalizePriceInput = (value) => {
   const normalized = String(value).replace(/[^0-9.]/g, '')
   if (!normalized) {
@@ -42,45 +69,181 @@ const normalizePriceInput = (value) => {
   return { raw: parsed, display: formatCurrency(parsed) }
 }
 
+const stripFileExtension = (fileName = '') =>
+  fileName.replace(/\.[^/.]+$/, '').replace(/[-_]+/g, ' ').trim()
+
+const createGalleryAsset = (asset) => ({
+  id: asset.id,
+  fileName: asset.fileName ?? 'Gallery asset',
+  assetUrl: asset.assetUrl ?? '',
+  previewUrl: asset.assetUrl ?? '',
+  internalNote: asset.internalNote ?? '',
+  source: 'gallery',
+})
+
+function InventoryQuickEditModal({
+  editForm,
+  feedback,
+  isSaving,
+  onChange,
+  onClose,
+  onSubmit,
+}) {
+  const isOpen = Boolean(editForm.id)
+
+  return (
+    <div className={`overlay${isOpen ? ' open' : ''}`}>
+      <div className="sheet quick-edit-sheet">
+        <div className="sheet-header">
+          <h2>
+            {editForm.type === 'salon' ? 'Edit Hair Style' : 'Edit Bead Product'}
+          </h2>
+          <button className="close-btn" onClick={onClose} type="button">
+            ✕
+          </button>
+        </div>
+
+        {isOpen ? (
+          <form className="form-stack" onSubmit={onSubmit}>
+            <div className="note">
+              Updating <strong>{editForm.name}</strong>
+            </div>
+
+            <div className="fg">
+              <label>Price</label>
+              <input
+                type="text"
+                value={editForm.priceDisplay}
+                onChange={onChange('price')}
+                placeholder="Kshs 120"
+              />
+            </div>
+
+            {editForm.type === 'salon' ? (
+              <div className="fg">
+                <label>Duration</label>
+                <input
+                  type="text"
+                  value={editForm.duration}
+                  onChange={onChange('duration')}
+                  placeholder="5–7 hrs"
+                />
+              </div>
+            ) : (
+              <div className="fg">
+                <label>Stock Quantity</label>
+                <input
+                  type="number"
+                  value={editForm.stock}
+                  onChange={onChange('stock')}
+                  placeholder="10"
+                />
+              </div>
+            )}
+
+            <div className="fg">
+              <label>Description</label>
+              <textarea
+                value={editForm.desc}
+                onChange={onChange('desc')}
+                placeholder="Short product or style description"
+              />
+            </div>
+
+            {feedback ? (
+              <p
+                className={`admin-auth-feedback ${
+                  feedback.type === 'error'
+                    ? 'admin-auth-feedback-error'
+                    : 'admin-auth-feedback-success'
+                }`}
+              >
+                {feedback.message}
+              </p>
+            ) : null}
+
+            <div className="security-actions">
+              <button
+                className="btn btn-primary"
+                type="submit"
+                disabled={isSaving}
+                style={{
+                  background:
+                    editForm.type === 'salon'
+                      ? 'var(--salon-accent)'
+                      : 'var(--bead-accent)',
+                }}
+              >
+                {isSaving ? 'Saving...' : 'Save Changes'}
+              </button>
+              <button className="btn btn-outline" type="button" onClick={onClose}>
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
 function AdminView({
   theme,
   onToggleTheme,
-  onExit,
+  onSignOut,
+  adminUser,
   adminMode,
   setAdminMode,
-  assetLibrary,
-  setAssetLibrary,
   salonStyles,
-  setSalonStyles,
   beadProducts,
-  setBeadProducts,
+  loadingSalon = false,
+  loadingBeads = false,
+  loadingBookings = false,
+  loadingOrders = false,
   bookings,
-  setBookings,
   orders,
-  setOrders,
 }) {
   const [salonForm, setSalonForm] = useState(initialSalonForm)
   const [beadForm, setBeadForm] = useState(initialBeadForm)
   const [salonUploadReset, setSalonUploadReset] = useState(0)
   const [beadUploadReset, setBeadUploadReset] = useState(0)
-  const nextSalonId = useRef(
-    salonStyles.length
-      ? Math.max(...salonStyles.map((item) => item.id)) + 1
-      : 1,
-  )
-  const nextBeadId = useRef(
-    beadProducts.length
-      ? Math.max(...beadProducts.map((item) => item.id)) + 1
-      : 1,
-  )
+  const [isSecurityOpen, setIsSecurityOpen] = useState(false)
+  const [dashboardFeedback, setDashboardFeedback] = useState(null)
+  const [inventoryEditForm, setInventoryEditForm] = useState(initialInventoryEditForm)
+  const [inventoryEditFeedback, setInventoryEditFeedback] = useState(null)
+  const [isSavingInventoryEdit, setIsSavingInventoryEdit] = useState(false)
 
   const pendingCount = useMemo(() => {
-    const pendingBookings = bookings.filter((b) => b.status === 'pending').length
-    const pendingOrders = orders.filter((o) => o.status === 'pending').length
+    const pendingBookings = bookings.filter((booking) => booking.status === 'pending').length
+    const pendingOrders = orders.filter((order) => order.status === 'pending').length
     return pendingBookings + pendingOrders
   }, [bookings, orders])
 
+  const lowStockItems = useMemo(
+    () => beadProducts.filter((product) => product.stock > 0 && product.stock < 3),
+    [beadProducts],
+  )
+
+  const outOfStockItems = useMemo(
+    () => beadProducts.filter((product) => product.stock === 0),
+    [beadProducts],
+  )
+
   const isGallery = adminMode === 'gallery'
+
+  const pushDashboardFeedback = (type, message) => {
+    setDashboardFeedback({ type, message })
+  }
+
+  const jumpToPanel = (panelId) => {
+    setAdminMode('dashboard')
+    window.setTimeout(() => {
+      document.getElementById(panelId)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      })
+    }, 80)
+  }
 
   const handleToggleMode = () => {
     setAdminMode((prev) => (prev === 'gallery' ? 'dashboard' : 'gallery'))
@@ -116,128 +279,328 @@ function AdminView({
     setBeadForm((prev) => ({ ...prev, [field]: value }))
   }
 
-  const handleAssetUpload = (asset, formType) => {
-    if (asset) {
-      setAssetLibrary((prev) => [asset, ...prev])
+  const handleInventoryEditChange = (field) => (event) => {
+    const { value } = event.target
+    if (field === 'price') {
+      const normalized = normalizePriceInput(value)
+      setInventoryEditForm((prev) => ({
+        ...prev,
+        price: normalized.raw,
+        priceDisplay: normalized.display,
+      }))
+      return
     }
 
+    setInventoryEditForm((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const handleAssetUpload = (asset, formType) => {
     if (formType === 'salon') {
       setSalonForm((prev) => ({ ...prev, image: asset || null }))
+      return
+    }
+
+    setBeadForm((prev) => ({ ...prev, image: asset || null }))
+  }
+
+  const getItemAssetUrl = (item) =>
+    item.assetUrl || item.image?.assetUrl || item.image?.previewUrl || ''
+
+  const renderSkeletonRows = (count = 4, prefix = 'admin') =>
+    Array.from({ length: count }, (_, index) => (
+      <SkeletonRow key={`${prefix}-${index}`} />
+    ))
+
+  const handleRepublishAsset = (asset, target) => {
+    const republishedAsset = createGalleryAsset(asset)
+    const defaultName = stripFileExtension(asset.fileName) || 'Untitled asset'
+    const defaultDescription = asset.internalNote?.trim() || ''
+
+    if (target === 'salon') {
+      setSalonUploadReset((value) => value + 1)
+      setSalonForm((prev) => ({
+        ...prev,
+        name: defaultName,
+        desc: defaultDescription,
+        image: republishedAsset,
+        emoji: prev.emoji || '✨',
+      }))
+      pushDashboardFeedback('success', 'Asset loaded into the Knot Just Braids form.')
+      jumpToPanel('admin-salon-panel')
     } else {
-      setBeadForm((prev) => ({ ...prev, image: asset || null }))
+      setBeadUploadReset((value) => value + 1)
+      setBeadForm((prev) => ({
+        ...prev,
+        name: defaultName,
+        desc: defaultDescription,
+        image: republishedAsset,
+        emoji: prev.emoji || '📿',
+      }))
+      pushDashboardFeedback('success', 'Asset loaded into the Knot Just Beads form.')
+      jumpToPanel('admin-beads-panel')
     }
   }
 
-  const handleAddSalon = (event) => {
+  const handleClearSelectedAsset = (formType) => {
+    if (formType === 'salon') {
+      setSalonForm((prev) => ({ ...prev, image: null }))
+      return
+    }
+
+    setBeadForm((prev) => ({ ...prev, image: null }))
+  }
+
+  const openInventoryEdit = (type, item) => {
+    setInventoryEditForm({
+      id: item.id,
+      type,
+      name: item.name,
+      price: Number(item.price) || 0,
+      priceDisplay: formatCurrency(item.price),
+      duration: item.duration ?? '',
+      stock: type === 'beads' ? String(item.stock ?? 0) : '',
+      desc: item.desc ?? item.description ?? '',
+    })
+    setInventoryEditFeedback(null)
+  }
+
+  const closeInventoryEdit = () => {
+    setInventoryEditForm(initialInventoryEditForm)
+    setInventoryEditFeedback(null)
+  }
+
+  const handleUpdateInventoryItem = async (event) => {
+    event.preventDefault()
+
+    const priceValue = Number(inventoryEditForm.price)
+    if (!priceValue || priceValue <= 0) {
+      setInventoryEditFeedback({
+        type: 'error',
+        message: 'Enter a valid price before saving.',
+      })
+      return
+    }
+
+    setIsSavingInventoryEdit(true)
+    setInventoryEditFeedback(null)
+
+    const collectionName =
+      inventoryEditForm.type === 'salon'
+        ? SALON_STYLES_COLLECTION
+        : BEAD_PRODUCTS_COLLECTION
+
+    const payload = {
+      price: priceValue,
+      description:
+        inventoryEditForm.desc.trim() ||
+        (inventoryEditForm.type === 'salon' ? 'Updated style' : 'Updated product'),
+      updatedAt: serverTimestamp(),
+    }
+
+    if (inventoryEditForm.type === 'salon') {
+      payload.duration = inventoryEditForm.duration.trim() || '—'
+    } else {
+      payload.stock = Math.max(0, Number.parseInt(inventoryEditForm.stock, 10) || 0)
+    }
+
+    try {
+      await updateDoc(doc(db, collectionName, String(inventoryEditForm.id)), payload)
+      closeInventoryEdit()
+      pushDashboardFeedback(
+        'success',
+        inventoryEditForm.type === 'salon'
+          ? 'Hair style updated successfully.'
+          : 'Bead product updated successfully.',
+      )
+    } catch (error) {
+      console.error('Failed to update inventory item:', error)
+      setInventoryEditFeedback({
+        type: 'error',
+        message: 'Could not save these inventory changes to Firestore.',
+      })
+    } finally {
+      setIsSavingInventoryEdit(false)
+    }
+  }
+
+  const handleAddSalon = async (event) => {
     event.preventDefault()
     if (!salonForm.name.trim() || !salonForm.price || !salonForm.desc.trim()) {
-      window.alert('Please fill in the name, price, and description.')
+      pushDashboardFeedback('error', 'Please fill in the name, price, and description.')
       return
     }
 
     const priceValue = Number(salonForm.price)
     if (!priceValue || priceValue <= 0) {
-      window.alert('Please enter a valid price.')
+      pushDashboardFeedback('error', 'Please enter a valid price.')
       return
     }
 
-    const id = nextSalonId.current++
-    const bg = salonBgs[(id - 1) % salonBgs.length]
-    const assetUrl = salonForm.image?.assetUrl
+    const bg = SALON_BACKGROUNDS[salonStyles.length % SALON_BACKGROUNDS.length]
+    const assetUrl = salonForm.image?.assetUrl || ''
     const emoji = salonForm.emoji.trim() || '✨'
 
-    setSalonStyles((prev) => [
-      ...prev,
-      {
-        id,
+    try {
+      await addDoc(collection(db, SALON_STYLES_COLLECTION), {
         name: salonForm.name.trim(),
         price: priceValue,
         duration: salonForm.duration.trim() || '—',
-        emoji: assetUrl ? undefined : emoji,
-        desc: salonForm.desc.trim() || 'New style',
+        description: salonForm.desc.trim() || 'New style',
+        assetUrl,
+        emoji,
         bg,
-        image: assetUrl ? { assetUrl } : null,
-      },
-    ])
-    setSalonForm(initialSalonForm)
-    setSalonUploadReset((value) => value + 1)
+        createdAt: serverTimestamp(),
+      })
+
+      setSalonForm(initialSalonForm)
+      setSalonUploadReset((value) => value + 1)
+      pushDashboardFeedback('success', 'Hair style published successfully.')
+    } catch (error) {
+      console.error('Failed to save salon style:', error)
+      pushDashboardFeedback('error', 'Could not save the hair style to Firestore.')
+    }
   }
 
-  const handleAddBead = (event) => {
+  const handleAddBead = async (event) => {
     event.preventDefault()
     if (!beadForm.name.trim() || !beadForm.price || !beadForm.desc.trim()) {
-      window.alert('Please fill in the name, price, and description.')
+      pushDashboardFeedback('error', 'Please fill in the name, price, and description.')
       return
     }
 
     const priceValue = Number(beadForm.price)
     if (!priceValue || priceValue <= 0) {
-      window.alert('Please enter a valid price.')
+      pushDashboardFeedback('error', 'Please enter a valid price.')
       return
     }
 
-    const id = nextBeadId.current++
-    const bg = beadBgs[(id - 1) % beadBgs.length]
+    const bg = BEAD_BACKGROUNDS[beadProducts.length % BEAD_BACKGROUNDS.length]
     const stock = Math.max(0, Number.parseInt(beadForm.stock, 10) || 0)
-    const assetUrl = beadForm.image?.assetUrl
+    const assetUrl = beadForm.image?.assetUrl || ''
     const emoji = beadForm.emoji.trim() || '📿'
 
-    setBeadProducts((prev) => [
-      ...prev,
-      {
-        id,
+    try {
+      await addDoc(collection(db, BEAD_PRODUCTS_COLLECTION), {
         name: beadForm.name.trim(),
         price: priceValue,
         stock,
-        emoji: assetUrl ? undefined : emoji,
-        desc: beadForm.desc.trim() || 'New product',
+        description: beadForm.desc.trim() || 'New product',
+        assetUrl,
+        emoji,
         bg,
-        image: assetUrl ? { assetUrl } : null,
-      },
-    ])
-    setBeadForm(initialBeadForm)
-    setBeadUploadReset((value) => value + 1)
+        createdAt: serverTimestamp(),
+      })
+
+      setBeadForm(initialBeadForm)
+      setBeadUploadReset((value) => value + 1)
+      pushDashboardFeedback('success', 'Bead product published successfully.')
+    } catch (error) {
+      console.error('Failed to save bead product:', error)
+      pushDashboardFeedback('error', 'Could not save the bead product to Firestore.')
+    }
   }
 
-  const handleDeleteSalon = (id) => {
-    setSalonStyles((prev) => prev.filter((item) => item.id !== id))
+  const handleDeleteSalon = async (id) => {
+    try {
+      await deleteDoc(doc(db, SALON_STYLES_COLLECTION, String(id)))
+      pushDashboardFeedback('success', 'Hair style removed successfully.')
+    } catch (error) {
+      console.error('Failed to delete salon style:', error)
+      pushDashboardFeedback('error', 'Could not delete the hair style from Firestore.')
+    }
   }
 
-  const handleDeleteBead = (id) => {
-    setBeadProducts((prev) => prev.filter((item) => item.id !== id))
+  const handleDeleteBead = async (id) => {
+    try {
+      await deleteDoc(doc(db, BEAD_PRODUCTS_COLLECTION, String(id)))
+      pushDashboardFeedback('success', 'Bead product removed successfully.')
+    } catch (error) {
+      console.error('Failed to delete bead product:', error)
+      pushDashboardFeedback('error', 'Could not delete the bead product from Firestore.')
+    }
   }
 
-  const handleBookingStatus = (id, status) => {
-    setBookings((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, status } : item)),
-    )
+  const handleBookingStatus = async (id, status) => {
+    try {
+      await updateDoc(doc(db, BOOKINGS_COLLECTION, String(id)), { status })
+      pushDashboardFeedback('success', 'Booking status updated successfully.')
+    } catch (error) {
+      console.error('Failed to update booking status:', error)
+      pushDashboardFeedback('error', 'Could not update the booking status in Firestore.')
+    }
   }
 
-  const handleOrderStatus = (id, status) => {
-    setOrders((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, status } : item)),
+  const handleOrderStatus = async (id, status) => {
+    try {
+      await updateDoc(doc(db, ORDERS_COLLECTION, String(id)), { status })
+      pushDashboardFeedback('success', 'Order status updated successfully.')
+    } catch (error) {
+      console.error('Failed to update order status:', error)
+      pushDashboardFeedback('error', 'Could not update the order status in Firestore.')
+    }
+  }
+
+  const renderGallerySelection = (formType, asset) => {
+    if (!asset?.assetUrl || asset.source !== 'gallery') return null
+
+    return (
+      <div className="selected-asset-card">
+        <img src={asset.assetUrl} alt={asset.fileName || 'Selected asset'} />
+        <div className="selected-asset-copy">
+          <strong>{asset.fileName || 'Selected gallery asset'}</strong>
+          <span>{asset.internalNote || 'This asset will be used when you publish.'}</span>
+        </div>
+        <button
+          className="btn btn-outline btn-sm"
+          type="button"
+          onClick={() => handleClearSelectedAsset(formType)}
+        >
+          Clear
+        </button>
+      </div>
     )
   }
 
   return (
     <>
       <div className="admin-nav">
-        <div className="admin-logo">GlowBook — Command Center</div>
+        <div className="admin-logo">Knot Just — Command Center</div>
         <div className="admin-nav-right">
           <button className="a-btn" onClick={onToggleTheme}>
             {theme === 'dark' ? '☀️' : '🌙'} Theme
           </button>
+          <button className="a-btn" onClick={() => setIsSecurityOpen(true)}>
+            🔐 Security
+          </button>
           <button className="a-btn" onClick={handleToggleMode}>
             {isGallery ? '← Dashboard' : '🖼️ Asset Gallery'}
           </button>
-          <button className="a-btn danger" onClick={onExit}>
+          <button className="a-btn danger" onClick={onSignOut}>
             ← Exit Admin
           </button>
         </div>
       </div>
 
+      <SecurityDialog
+        isOpen={isSecurityOpen}
+        onClose={() => setIsSecurityOpen(false)}
+        userEmail={adminUser?.email ?? ''}
+      />
+
+      <InventoryQuickEditModal
+        editForm={inventoryEditForm}
+        feedback={inventoryEditFeedback}
+        isSaving={isSavingInventoryEdit}
+        onChange={handleInventoryEditChange}
+        onClose={closeInventoryEdit}
+        onSubmit={handleUpdateInventoryItem}
+      />
+
       {isGallery ? (
-        <AdminGallery assets={assetLibrary} />
+        <AdminGallery
+          onRepublishToSalon={(asset) => handleRepublishAsset(asset, 'salon')}
+          onRepublishToBeads={(asset) => handleRepublishAsset(asset, 'beads')}
+        />
       ) : (
         <>
           <div
@@ -251,11 +614,29 @@ function AdminView({
             />
           </div>
 
+          {dashboardFeedback ? (
+            <div
+              className="admin-panel span2"
+              style={{ background: 'transparent', padding: '0 1.5rem 0.8rem' }}
+            >
+              <p
+                className={`admin-auth-feedback ${
+                  dashboardFeedback.type === 'error'
+                    ? 'admin-auth-feedback-error'
+                    : 'admin-auth-feedback-success'
+                }`}
+              >
+                {dashboardFeedback.message}
+              </p>
+            </div>
+          ) : null}
+
           <div className="admin-body">
             <AdminPanel
               title="Hair Styles Gallery"
               tagLabel="SALON"
               tagClass="tag-salon"
+              panelId="admin-salon-panel"
             >
               <form
                 className="admin-form"
@@ -294,6 +675,7 @@ function AdminView({
                   <ImageUploader
                     onUpload={(asset) => handleAssetUpload(asset, 'salon')}
                     resetSignal={salonUploadReset}
+                    selectedAsset={salonForm.image}
                   />
                 </div>
                 <div className="a-fg">
@@ -315,20 +697,28 @@ function AdminView({
                     onChange={handleSalonChange('desc')}
                   />
                 </div>
+                {salonForm.image?.source === 'gallery' ? (
+                  <div className="a-fg full">
+                    {renderGallerySelection('salon', salonForm.image)}
+                  </div>
+                ) : null}
                 <div className="a-fg full">
                   <button className="a-add-btn" type="submit">
                     ＋ Add Hair Style
                   </button>
                 </div>
               </form>
+
               <div id="adminSalonList">
-                {salonStyles.length ? (
+                {loadingSalon ? (
+                  renderSkeletonRows(4, 'salon')
+                ) : salonStyles.length ? (
                   salonStyles.map((item) => (
                     <div className="a-item-row" key={item.id}>
                       <span className="emoji">
-                        {item.image?.assetUrl || item.image?.previewUrl ? (
+                        {getItemAssetUrl(item) ? (
                           <img
-                            src={item.image.assetUrl || item.image.previewUrl}
+                            src={getItemAssetUrl(item)}
                             alt={item.name}
                             style={{
                               width: '24px',
@@ -345,13 +735,24 @@ function AdminView({
                       <span className="sub">
                         {formatCurrency(item.price)} · {item.duration}
                       </span>
-                      <button
-                        className="a-del"
-                        onClick={() => handleDeleteSalon(item.id)}
-                        type="button"
-                      >
-                        ✕
-                      </button>
+                      <div className="a-row-actions">
+                        <button
+                          className="a-edit"
+                          onClick={() => openInventoryEdit('salon', item)}
+                          type="button"
+                          aria-label={`Edit ${item.name}`}
+                        >
+                          ✎
+                        </button>
+                        <button
+                          className="a-del"
+                          onClick={() => handleDeleteSalon(item.id)}
+                          type="button"
+                          aria-label={`Delete ${item.name}`}
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </div>
                   ))
                 ) : (
@@ -366,7 +767,25 @@ function AdminView({
               title="Beadwork Products"
               tagLabel="SHOP"
               tagClass="tag-beads"
+              panelId="admin-beads-panel"
             >
+              {lowStockItems.length || outOfStockItems.length ? (
+                <div className="inventory-alert-stack">
+                  {outOfStockItems.length ? (
+                    <div className="inventory-alert danger">
+                      <strong>Out of Stock</strong>
+                      <span>{outOfStockItems.map((item) => item.name).join(', ')}</span>
+                    </div>
+                  ) : null}
+                  {lowStockItems.length ? (
+                    <div className="inventory-alert warning">
+                      <strong>Low Stock</strong>
+                      <span>{lowStockItems.map((item) => item.name).join(', ')}</span>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
               <form
                 className="admin-form"
                 style={{ marginBottom: '1rem' }}
@@ -405,6 +824,7 @@ function AdminView({
                   <ImageUploader
                     onUpload={(asset) => handleAssetUpload(asset, 'beads')}
                     resetSignal={beadUploadReset}
+                    selectedAsset={beadForm.image}
                   />
                 </div>
                 <div className="a-fg">
@@ -426,20 +846,28 @@ function AdminView({
                     onChange={handleBeadChange('desc')}
                   />
                 </div>
+                {beadForm.image?.source === 'gallery' ? (
+                  <div className="a-fg full">
+                    {renderGallerySelection('beads', beadForm.image)}
+                  </div>
+                ) : null}
                 <div className="a-fg full">
                   <button className="a-add-btn bead-add" type="submit">
                     ＋ Add Bead Product
                   </button>
                 </div>
               </form>
+
               <div id="adminBeadList">
-                {beadProducts.length ? (
+                {loadingBeads ? (
+                  renderSkeletonRows(4, 'beads')
+                ) : beadProducts.length ? (
                   beadProducts.map((item) => (
                     <div className="a-item-row" key={item.id}>
                       <span className="emoji">
-                        {item.image?.assetUrl || item.image?.previewUrl ? (
+                        {getItemAssetUrl(item) ? (
                           <img
-                            src={item.image.assetUrl || item.image.previewUrl}
+                            src={getItemAssetUrl(item)}
                             alt={item.name}
                             style={{
                               width: '24px',
@@ -454,15 +882,27 @@ function AdminView({
                       </span>
                       <span className="name">{item.name}</span>
                       <span className="sub">
-                        {formatCurrency(item.price)} · {item.stock} in stock
+                        {formatCurrency(item.price)} ·{' '}
+                        {item.stock === 0 ? 'Out of stock' : `${item.stock} in stock`}
                       </span>
-                      <button
-                        className="a-del"
-                        onClick={() => handleDeleteBead(item.id)}
-                        type="button"
-                      >
-                        ✕
-                      </button>
+                      <div className="a-row-actions">
+                        <button
+                          className="a-edit"
+                          onClick={() => openInventoryEdit('beads', item)}
+                          type="button"
+                          aria-label={`Edit ${item.name}`}
+                        >
+                          ✎
+                        </button>
+                        <button
+                          className="a-del"
+                          onClick={() => handleDeleteBead(item.id)}
+                          type="button"
+                          aria-label={`Delete ${item.name}`}
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </div>
                   ))
                 ) : (
@@ -479,7 +919,9 @@ function AdminView({
               tagClass="tag-bookings"
             >
               <div id="adminBookings">
-                {bookings.length ? (
+                {loadingBookings ? (
+                  renderSkeletonRows(3, 'bookings')
+                ) : bookings.length ? (
                   bookings.map((item) => {
                     const chipClass =
                       item.status === 'pending'
@@ -504,18 +946,14 @@ function AdminView({
                             <button
                               className="confirm-btn cb-confirm"
                               type="button"
-                              onClick={() =>
-                                handleBookingStatus(item.id, 'confirmed')
-                              }
+                              onClick={() => handleBookingStatus(item.id, 'confirmed')}
                             >
                               ✓ Confirm
                             </button>
                             <button
                               className="confirm-btn cb-decline"
                               type="button"
-                              onClick={() =>
-                                handleBookingStatus(item.id, 'declined')
-                              }
+                              onClick={() => handleBookingStatus(item.id, 'declined')}
                             >
                               ✕ Decline
                             </button>
@@ -526,7 +964,7 @@ function AdminView({
                   })
                 ) : (
                   <p style={{ opacity: 0.4, fontSize: '0.8rem' }}>
-                    No bookings yet.
+                    No pending actions.
                   </p>
                 )}
               </div>
@@ -538,7 +976,9 @@ function AdminView({
               tagClass="tag-orders"
             >
               <div id="adminOrders">
-                {orders.length ? (
+                {loadingOrders ? (
+                  renderSkeletonRows(3, 'orders')
+                ) : orders.length ? (
                   orders.map((item) => (
                     <div className="b-row" key={item.id}>
                       <div className="b-top">
@@ -566,9 +1006,7 @@ function AdminView({
                           <button
                             className="confirm-btn cb-fulfill"
                             type="button"
-                            onClick={() =>
-                              handleOrderStatus(item.id, 'fulfilled')
-                            }
+                            onClick={() => handleOrderStatus(item.id, 'fulfilled')}
                           >
                             📦 Mark Fulfilled
                           </button>
@@ -578,7 +1016,7 @@ function AdminView({
                   ))
                 ) : (
                   <p style={{ opacity: 0.4, fontSize: '0.8rem' }}>
-                    No orders yet.
+                    No pending actions.
                   </p>
                 )}
               </div>

@@ -11,7 +11,7 @@ function Navigation({
   return (
     <nav>
       <div className="logo" onClick={onLogoClick}>
-        Glow<span className="dot">.</span>Book
+        Knot Just<span className="dot">.</span>
       </div>
       <div className="nav-right">
         <button className="icon-btn" onClick={onToggleTheme} title="Toggle theme">

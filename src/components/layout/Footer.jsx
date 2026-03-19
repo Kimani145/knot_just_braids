@@ -2,7 +2,7 @@ function Footer() {
   return (
     <footer>
       <span className="logo">
-        Glow<span style={{ color: 'var(--salon-accent)' }}>.</span>Book
+        Knot Just<span style={{ color: 'var(--salon-accent)' }}>.</span>
       </span>
       <p>Your home salon & beadwork destination — all in one place.</p>
     </footer>

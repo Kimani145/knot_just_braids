@@ -40,14 +40,14 @@ function FeedToggle({ activeFeed, onChange }) {
           className={`feed-pill${activeFeed === 'salon' ? ' active' : ''}`}
           onClick={() => onChange('salon')}
         >
-          💇 Hair Salon
+          💇 Knot Just Braids
         </button>
         <button
           ref={beadsRef}
           className={`feed-pill${activeFeed === 'beads' ? ' active' : ''}`}
           onClick={() => onChange('beads')}
         >
-          📿 Beadwork Shop
+          📿 Knot Just Beads
         </button>
       </div>
     </div>

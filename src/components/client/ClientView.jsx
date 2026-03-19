@@ -2,10 +2,19 @@ import { useMemo, useRef } from 'react'
 import HeroStrip from './HeroStrip'
 import CatalogGrid from './CatalogGrid'
 
-function ClientView({ activeFeed, salonStyles, beadProducts, onBook, onAddToCart }) {
+function ClientView({
+  activeFeed,
+  salonStyles,
+  beadProducts,
+  loadingSalon,
+  loadingBeads,
+  onBook,
+  onAddToCart,
+}) {
   const catalogRef = useRef(null)
   const isSalon = activeFeed === 'salon'
   const items = isSalon ? salonStyles : beadProducts
+  const isLoading = isSalon ? loadingSalon : loadingBeads
 
   const catalogCopy = useMemo(() => {
     return isSalon
@@ -47,6 +56,7 @@ function ClientView({ activeFeed, salonStyles, beadProducts, onBook, onAddToCart
         <CatalogGrid
           items={items}
           isSalon={isSalon}
+          isLoading={isLoading}
           onBook={onBook}
           onAddToCart={onAddToCart}
         />

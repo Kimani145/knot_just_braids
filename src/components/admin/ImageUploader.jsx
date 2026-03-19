@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore'
 import formatBytes from '../../utils/formatBytes'
 import { db } from '../../firebase'
+import { ASSET_METADATA_COLLECTION } from '../../constants/catalog'
 
-const CLOUDINARY_CLOUD_NAME = 'dgtcve0py'
-const CLOUDINARY_UPLOAD_PRESET = 'knot_just_braids'
+const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME
+const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET
 
 const createId = () => {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -14,14 +15,19 @@ const createId = () => {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
-function ImageUploader({ onUpload, resetSignal }) {
+function ImageUploader({ onUpload, resetSignal, selectedAsset = null }) {
   const inputRef = useRef(null)
+  const previewUrlRef = useRef('')
   const [isDragging, setIsDragging] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
   const [previewUrl, setPreviewUrl] = useState('')
   const [fileName, setFileName] = useState('')
   const [uploadedAssetUrl, setUploadedAssetUrl] = useState('')
+
+  useEffect(() => {
+    previewUrlRef.current = previewUrl
+  }, [previewUrl])
 
   useEffect(() => {
     return () => {
@@ -33,8 +39,9 @@ function ImageUploader({ onUpload, resetSignal }) {
 
   useEffect(() => {
     if (resetSignal === undefined) return
-    if (previewUrl && previewUrl.startsWith('blob:')) {
-      URL.revokeObjectURL(previewUrl)
+    const currentPreviewUrl = previewUrlRef.current
+    if (currentPreviewUrl && currentPreviewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(currentPreviewUrl)
     }
     setPreviewUrl('')
     setFileName('')
@@ -47,7 +54,39 @@ function ImageUploader({ onUpload, resetSignal }) {
     }
   }, [resetSignal])
 
+  useEffect(() => {
+    if (!selectedAsset) return
+
+    const nextUrl = selectedAsset.assetUrl || selectedAsset.previewUrl || ''
+    if (!nextUrl) return
+
+    const currentPreviewUrl = previewUrlRef.current
+    if (
+      currentPreviewUrl &&
+      currentPreviewUrl.startsWith('blob:') &&
+      currentPreviewUrl !== nextUrl
+    ) {
+      URL.revokeObjectURL(currentPreviewUrl)
+    }
+
+    setPreviewUrl(nextUrl)
+    setFileName(selectedAsset.fileName || 'Selected asset')
+    setUploadedAssetUrl(nextUrl)
+    setUploadError('')
+    setIsUploading(false)
+
+    if (inputRef.current) {
+      inputRef.current.value = ''
+    }
+  }, [selectedAsset])
+
   const uploadToCloudinary = async (file) => {
+    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {
+      throw new Error(
+        'Missing Cloudinary env vars. Define VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET.',
+      )
+    }
+
     const formData = new FormData()
     formData.append('file', file)
     formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET)
@@ -90,22 +129,38 @@ function ImageUploader({ onUpload, resetSignal }) {
     setIsUploading(true)
 
     try {
+      const formattedFileSize = formatBytes(file.size)
       const cloudinaryResponse = await uploadToCloudinary(file)
       const assetUrl = cloudinaryResponse.secure_url
+
+      if (!assetUrl) {
+        throw new Error('Cloudinary upload succeeded without returning a secure URL.')
+      }
+
       setUploadedAssetUrl(assetUrl)
 
-      await addDoc(collection(db, 'assets_metadata'), {
-        fileName: file.name,
-        fileSize: formatBytes(file.size),
-        mimeType: file.type,
-        assetUrl,
-        uploadedAt: serverTimestamp(),
-      })
+      try {
+        const docRef = await addDoc(collection(db, ASSET_METADATA_COLLECTION), {
+          fileName: file.name,
+          fileSize: formattedFileSize,
+          mimeType: file.type,
+          assetUrl,
+          uploadedAt: serverTimestamp(),
+        })
+
+        console.log('Firestore Save Success:', docRef.id)
+      } catch (error) {
+        console.error('Firestore Save Failed:', error)
+        setUploadError(
+          'Image uploaded to Cloudinary, but Firestore metadata failed to save.',
+        )
+        return
+      }
 
       const asset = {
         id: createId(),
         fileName: file.name,
-        fileSize: formatBytes(file.size),
+        fileSize: formattedFileSize,
         mimeType: file.type,
         timestamp: new Date().toISOString(),
         previewUrl: assetUrl,

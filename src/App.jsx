@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { onAuthStateChanged, signOut as signOutAuth } from 'firebase/auth'
+import { collection, onSnapshot } from 'firebase/firestore'
 import Navigation from './components/layout/Navigation'
 import FeedToggle from './components/layout/FeedToggle'
 import Footer from './components/layout/Footer'
@@ -6,177 +8,129 @@ import ClientView from './components/client/ClientView'
 import BookingSheet from './components/modals/BookingSheet'
 import CartSheet from './components/modals/CartSheet'
 import CheckoutSheet from './components/modals/CheckoutSheet'
+import AdminLogin from './components/admin/AdminLogin'
 import AdminView from './components/admin/AdminView'
-
-const initialSalonStyles = [
-  {
-    id: 1,
-    name: 'Knotless Box Braids',
-    price: 120,
-    duration: '5–7 hrs',
-    emoji: '🌿',
-    desc: 'Lightweight, natural-looking knotless braids',
-    bg: 'sg1',
-  },
-  {
-    id: 2,
-    name: 'Butterfly Locs',
-    price: 150,
-    duration: '6–8 hrs',
-    emoji: '🦋',
-    desc: 'Gorgeous distressed bohemian locs',
-    bg: 'sg2',
-  },
-  {
-    id: 3,
-    name: 'Ghana Weaving',
-    price: 80,
-    duration: '3–4 hrs',
-    emoji: '👑',
-    desc: 'Classic raised cornrow patterns',
-    bg: 'sg3',
-  },
-  {
-    id: 4,
-    name: 'Faux Locs',
-    price: 130,
-    duration: '5–7 hrs',
-    emoji: '✨',
-    desc: 'Protective loc style using extensions',
-    bg: 'sg4',
-  },
-  {
-    id: 5,
-    name: 'Passion Twists',
-    price: 110,
-    duration: '4–6 hrs',
-    emoji: '💫',
-    desc: 'Soft, romantic bohemian twists',
-    bg: 'sg5',
-  },
-  {
-    id: 6,
-    name: 'Natural Twist Out',
-    price: 60,
-    duration: '2–3 hrs',
-    emoji: '🌺',
-    desc: 'Defined curls from your natural texture',
-    bg: 'sg6',
-  },
-]
-
-const initialBeadProducts = [
-  {
-    id: 1,
-    name: 'Waist Beads Set',
-    price: 25,
-    stock: 8,
-    emoji: '📿',
-    desc: 'Handmade traditional waist beads in vibrant colors',
-    bg: 'bg1',
-  },
-  {
-    id: 2,
-    name: 'Beaded Anklet',
-    price: 15,
-    stock: 12,
-    emoji: '✨',
-    desc: 'Delicate beaded anklet, adjustable fit',
-    bg: 'bg2',
-  },
-  {
-    id: 3,
-    name: 'Wrist Bracelet',
-    price: 18,
-    stock: 15,
-    emoji: '💚',
-    desc: 'Colorful beaded wristband, handcrafted',
-    bg: 'bg3',
-  },
-  {
-    id: 4,
-    name: 'Neck Piece',
-    price: 35,
-    stock: 5,
-    emoji: '🌟',
-    desc: 'Statement beaded necklace, custom colors available',
-    bg: 'bg4',
-  },
-  {
-    id: 5,
-    name: 'Earrings Set',
-    price: 20,
-    stock: 10,
-    emoji: '💜',
-    desc: 'Lightweight beaded drop earrings',
-    bg: 'bg5',
-  },
-  {
-    id: 6,
-    name: 'Custom Set',
-    price: 55,
-    stock: 3,
-    emoji: '🎨',
-    desc: 'Fully custom waist + ankle + wrist combo set',
-    bg: 'bg6',
-  },
-]
-
-const initialBookings = [
-  {
-    id: 'B001',
-    name: 'Amara Osei',
-    style: 'Butterfly Locs',
-    date: '2026-03-18',
-    time: '10:00',
-    status: 'pending',
-  },
-  {
-    id: 'B002',
-    name: 'Kefilwe Dube',
-    style: 'Ghana Weaving',
-    date: '2026-03-19',
-    time: '14:00',
-    status: 'pending',
-  },
-]
-
-const initialOrders = [
-  {
-    id: 'O1001',
-    name: 'Siyanda Nkosi',
-    items: 'Waist Beads Set x1, Anklet x2',
-    total: 55,
-    status: 'pending',
-  },
-]
+import { auth, db } from './firebase'
+import {
+  BEAD_BACKGROUNDS,
+  BEAD_PRODUCTS_COLLECTION,
+  BOOKINGS_COLLECTION,
+  ORDERS_COLLECTION,
+  SALON_BACKGROUNDS,
+  SALON_STYLES_COLLECTION,
+} from './constants/catalog'
 
 const getViewFromPath = () => {
   if (typeof window === 'undefined') return 'client'
   return window.location.pathname === '/admin' ? 'admin' : 'client'
 }
 
+const getInitialTheme = () => {
+  if (typeof window === 'undefined') return 'light'
+
+  return window.matchMedia &&
+    window.matchMedia('(prefers-color-scheme: dark)').matches
+    ? 'dark'
+    : 'light'
+}
+
+const getInitialFeed = () => {
+  if (typeof window === 'undefined') return 'salon'
+
+  const storedFeed = window.localStorage.getItem('knotJustFeed')
+  return storedFeed === 'beads' ? 'beads' : 'salon'
+}
+
+const mapSalonStyle = (docSnapshot, index) => {
+  const data = docSnapshot.data()
+
+  return {
+    id: docSnapshot.id,
+    name: data.name ?? 'Untitled style',
+    price: Number(data.price) || 0,
+    duration: data.duration ?? '—',
+    emoji: data.emoji ?? '✨',
+    desc: data.description ?? data.desc ?? 'New style',
+    bg: data.bg ?? SALON_BACKGROUNDS[index % SALON_BACKGROUNDS.length],
+    assetUrl: data.assetUrl ?? '',
+  }
+}
+
+const mapBeadProduct = (docSnapshot, index) => {
+  const data = docSnapshot.data()
+
+  return {
+    id: docSnapshot.id,
+    name: data.name ?? 'Untitled product',
+    price: Number(data.price) || 0,
+    stock: Math.max(0, Number.parseInt(data.stock, 10) || 0),
+    emoji: data.emoji ?? '📿',
+    desc: data.description ?? data.desc ?? 'New product',
+    bg: data.bg ?? BEAD_BACKGROUNDS[index % BEAD_BACKGROUNDS.length],
+    assetUrl: data.assetUrl ?? '',
+  }
+}
+
+const getDisplayName = (data) => {
+  const fullName = [data.firstName, data.lastName].filter(Boolean).join(' ').trim()
+  const explicitName = typeof data.name === 'string' ? data.name.trim() : ''
+  return explicitName || fullName || ''
+}
+
+const mapBooking = (docSnapshot) => {
+  const data = docSnapshot.data()
+  const displayName = getDisplayName(data)
+
+  return {
+    id: docSnapshot.id,
+    name: displayName || 'Appointment request',
+    style: data.style ?? data.service ?? 'Style request',
+    date: data.date ?? 'Date pending',
+    time: data.time ?? 'Time pending',
+    status: data.status ?? 'pending',
+  }
+}
+
+const mapOrder = (docSnapshot) => {
+  const data = docSnapshot.data()
+  const displayName = getDisplayName(data)
+  const lineItems = Array.isArray(data.lineItems) ? data.lineItems : []
+  const itemSummary =
+    typeof data.items === 'string' && data.items.trim()
+      ? data.items
+      : lineItems
+          .map((item) => `${item.name ?? 'Item'} x${Number(item.qty) || 0}`)
+          .join(', ')
+
+  return {
+    id: docSnapshot.id,
+    name: displayName || 'Order customer',
+    items: itemSummary || 'Order details pending',
+    total: Number(data.total) || 0,
+    status: data.status ?? 'pending',
+  }
+}
+
 function App() {
   const [currentView, setCurrentView] = useState(getViewFromPath)
-  const [activeFeed, setActiveFeed] = useState('salon')
-  const [theme, setTheme] = useState('light')
+  const [activeFeed, setActiveFeed] = useState(getInitialFeed)
+  const [theme, setTheme] = useState(getInitialTheme)
+  const [adminUser, setAdminUser] = useState(null)
+  const [isAuthReady, setIsAuthReady] = useState(false)
   const [cart, setCart] = useState([])
-  const [salonStyles, setSalonStyles] = useState(initialSalonStyles)
-  const [beadProducts, setBeadProducts] = useState(initialBeadProducts)
-  const [bookings, setBookings] = useState(initialBookings)
-  const [orders, setOrders] = useState(initialOrders)
+  const [salonStyles, setSalonStyles] = useState([])
+  const [beadProducts, setBeadProducts] = useState([])
+  const [loadingSalon, setLoadingSalon] = useState(true)
+  const [loadingBeads, setLoadingBeads] = useState(true)
+  const [loadingBookings, setLoadingBookings] = useState(true)
+  const [loadingOrders, setLoadingOrders] = useState(true)
+  const [bookings, setBookings] = useState([])
+  const [orders, setOrders] = useState([])
   const [adminMode, setAdminMode] = useState('dashboard')
-  const [assetLibrary, setAssetLibrary] = useState([])
   const [isBookingOpen, setIsBookingOpen] = useState(false)
   const [bookingStyle, setBookingStyle] = useState('')
   const [isCartOpen, setIsCartOpen] = useState(false)
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
-
-  useEffect(() => {
-    const prefersDark =
-      window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-    setTheme(prefersDark ? 'dark' : 'light')
-  }, [])
 
   useEffect(() => {
     const handlePop = () => {
@@ -188,11 +142,91 @@ function App() {
   }, [])
 
   useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setAdminUser(user)
+      setIsAuthReady(true)
+    })
+
+    return () => unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      collection(db, SALON_STYLES_COLLECTION),
+      (snapshot) => {
+        setSalonStyles(snapshot.docs.map((doc, index) => mapSalonStyle(doc, index)))
+        setLoadingSalon(false)
+      },
+      (error) => {
+        console.error('Failed to sync salon_styles:', error)
+        setLoadingSalon(false)
+      },
+    )
+
+    return () => unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      collection(db, BEAD_PRODUCTS_COLLECTION),
+      (snapshot) => {
+        setBeadProducts(snapshot.docs.map((doc, index) => mapBeadProduct(doc, index)))
+        setLoadingBeads(false)
+      },
+      (error) => {
+        console.error('Failed to sync bead_products:', error)
+        setLoadingBeads(false)
+      },
+    )
+
+    return () => unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      collection(db, BOOKINGS_COLLECTION),
+      (snapshot) => {
+        setBookings(snapshot.docs.map((doc) => mapBooking(doc)))
+        setLoadingBookings(false)
+      },
+      (error) => {
+        console.error('Failed to sync bookings:', error)
+        setBookings([])
+        setLoadingBookings(false)
+      },
+    )
+
+    return () => unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      collection(db, ORDERS_COLLECTION),
+      (snapshot) => {
+        setOrders(snapshot.docs.map((doc) => mapOrder(doc)))
+        setLoadingOrders(false)
+      },
+      (error) => {
+        console.error('Failed to sync orders:', error)
+        setOrders([])
+        setLoadingOrders(false)
+      },
+    )
+
+    return () => unsubscribe()
+  }, [])
+
+  useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
   }, [theme])
 
   useEffect(() => {
     document.body.setAttribute('data-feed', activeFeed)
+  }, [activeFeed])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem('knotJustFeed', activeFeed)
   }, [activeFeed])
 
   const cartCount = cart.reduce((sum, item) => sum + (item.qty || 0), 0)
@@ -220,7 +254,6 @@ function App() {
   }
 
   const handleOrderComplete = () => {
-    setIsCheckoutOpen(false)
     setCart([])
   }
 
@@ -228,10 +261,20 @@ function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const handleExitAdmin = () => {
+  const leaveAdminRoute = () => {
     window.history.pushState({}, '', '/')
     setCurrentView('client')
     setAdminMode('dashboard')
+  }
+
+  const handleAdminSignOut = async () => {
+    try {
+      await signOutAuth(auth)
+      leaveAdminRoute()
+    } catch (error) {
+      console.error('Admin sign-out failed:', error)
+      window.alert('Unable to sign out right now.')
+    }
   }
 
   const handleBookStyle = (item) => {
@@ -267,6 +310,7 @@ function App() {
           price: Number(item.price) || 0,
           emoji: item.emoji,
           bg: item.bg,
+          assetUrl: item.assetUrl,
           qty: 1,
           stock: item.stock,
         },
@@ -292,6 +336,8 @@ function App() {
           activeFeed={activeFeed}
           salonStyles={salonStyles}
           beadProducts={beadProducts}
+          loadingSalon={loadingSalon}
+          loadingBeads={loadingBeads}
           onBook={handleBookStyle}
           onAddToCart={handleAddToCart}
         />
@@ -302,23 +348,33 @@ function App() {
         id="view-admin"
         className={`view${currentView === 'admin' ? ' active' : ''}`}
       >
-        <AdminView
-          theme={theme}
-          onToggleTheme={handleToggleTheme}
-          onExit={handleExitAdmin}
-          adminMode={adminMode}
-          setAdminMode={setAdminMode}
-          assetLibrary={assetLibrary}
-          setAssetLibrary={setAssetLibrary}
-          salonStyles={salonStyles}
-          setSalonStyles={setSalonStyles}
-          beadProducts={beadProducts}
-          setBeadProducts={setBeadProducts}
-          bookings={bookings}
-          setBookings={setBookings}
-          orders={orders}
-          setOrders={setOrders}
-        />
+        {currentView === 'admin' ? (
+          adminUser ? (
+            <AdminView
+              theme={theme}
+              onToggleTheme={handleToggleTheme}
+              onSignOut={handleAdminSignOut}
+              adminUser={adminUser}
+              adminMode={adminMode}
+              setAdminMode={setAdminMode}
+              salonStyles={salonStyles}
+              beadProducts={beadProducts}
+              loadingSalon={loadingSalon}
+              loadingBeads={loadingBeads}
+              loadingBookings={loadingBookings}
+              loadingOrders={loadingOrders}
+              bookings={bookings}
+              orders={orders}
+            />
+          ) : (
+            <AdminLogin
+              isCheckingSession={!isAuthReady}
+              onBackToStore={leaveAdminRoute}
+            />
+          )
+        ) : (
+          null
+        )}
       </div>
 
       <BookingSheet

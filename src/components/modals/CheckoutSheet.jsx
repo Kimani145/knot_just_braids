@@ -1,18 +1,35 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
+import {
+  collection,
+  doc,
+  runTransaction,
+  serverTimestamp,
+} from 'firebase/firestore'
+import PolicyModal from './PolicyModal'
+import { db } from '../../firebase'
+import {
+  BEAD_PRODUCTS_COLLECTION,
+  ORDERS_COLLECTION,
+} from '../../constants/catalog'
 import formatCurrency from '../../utils/formatCurrency'
+import {
+  getStoredClientDetails,
+  saveClientDetails,
+} from '../../utils/clientDetailsStorage'
 
-const initialForm = {
-  firstName: '',
-  lastName: '',
-  email: '',
+const createInitialForm = () => ({
+  ...getStoredClientDetails(),
   address: '',
-  phone: '',
-}
+})
 
 function CheckoutSheet({ isOpen, cart, onClose, onComplete }) {
-  const [form, setForm] = useState(initialForm)
+  const [form, setForm] = useState(createInitialForm)
   const [isSuccess, setIsSuccess] = useState(false)
   const [submitted, setSubmitted] = useState(null)
+  const [submitError, setSubmitError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isPolicyOpen, setIsPolicyOpen] = useState(false)
+  const [hasAgreedToPolicy, setHasAgreedToPolicy] = useState(false)
 
   const totals = useMemo(() => {
     const total = cart.reduce((sum, item) => {
@@ -21,31 +38,149 @@ function CheckoutSheet({ isOpen, cart, onClose, onComplete }) {
     return { total, count: cart.length }
   }, [cart])
 
-  useEffect(() => {
-    if (isOpen) {
-      setForm(initialForm)
-      setIsSuccess(false)
-      setSubmitted(null)
-    }
-  }, [isOpen])
+  const resetSheet = () => {
+    setForm(createInitialForm())
+    setIsSuccess(false)
+    setSubmitted(null)
+    setSubmitError('')
+    setIsSubmitting(false)
+    setIsPolicyOpen(false)
+    setHasAgreedToPolicy(false)
+  }
+
+  const handleCloseSheet = () => {
+    resetSheet()
+    onClose?.()
+  }
 
   const handleChange = (field) => (event) => {
     setForm((prev) => ({ ...prev, [field]: event.target.value }))
   }
 
-  const handleSubmit = (event) => {
+  const getFriendlySubmitError = (error) => {
+    if (!error?.message) {
+      return 'Sorry, another user just purchased the last of an item in your cart. Please review your cart and try again.'
+    }
+
+    if (
+      error.message.startsWith('Not enough stock for') ||
+      error.message.startsWith('This item is no longer available')
+    ) {
+      return error.message
+    }
+
+    return 'Sorry, another user just purchased the last of an item in your cart. Please review your cart and try again.'
+  }
+
+  const submitOrder = async () => {
+    const trimmedFirstName = form.firstName.trim()
+    const trimmedLastName = form.lastName.trim()
+    const trimmedEmail = form.email.trim()
+    const trimmedPhone = form.phone.trim()
+    const trimmedAddress = form.address.trim()
+    const customerName = [trimmedFirstName, trimmedLastName].filter(Boolean).join(' ')
+    const itemSummary = cart
+      .map((item) => `${item.name} x${Number(item.qty) || 0}`)
+      .join(', ')
+    const orderRef = doc(collection(db, ORDERS_COLLECTION))
+
+    await runTransaction(db, async (transaction) => {
+      for (const item of cart) {
+        const productRef = doc(db, BEAD_PRODUCTS_COLLECTION, String(item.id))
+        const productSnapshot = await transaction.get(productRef)
+
+        if (!productSnapshot.exists()) {
+          throw new Error(`This item is no longer available: ${item.name}`)
+        }
+
+        const productData = productSnapshot.data()
+        const currentStock = Math.max(
+          0,
+          Number.parseInt(productData.stock, 10) || 0,
+        )
+        const quantity = Math.max(1, Number.parseInt(item.qty, 10) || 0)
+
+        if (currentStock < quantity) {
+          throw new Error(`Not enough stock for ${item.name}`)
+        }
+
+        transaction.update(productRef, { stock: currentStock - quantity })
+      }
+
+      transaction.set(orderRef, {
+        name: customerName || trimmedFirstName,
+        firstName: trimmedFirstName,
+        lastName: trimmedLastName,
+        email: trimmedEmail,
+        phone: trimmedPhone,
+        address: trimmedAddress,
+        items: itemSummary,
+        lineItems: cart.map((item) => ({
+          id: item.id,
+          name: item.name,
+          qty: Math.max(1, Number.parseInt(item.qty, 10) || 0),
+          price: Number(item.price) || 0,
+          assetUrl: item.assetUrl || '',
+          emoji: item.emoji || '',
+        })),
+        total: totals.total,
+        status: 'pending',
+        agreedToPolicy: true,
+        createdAt: serverTimestamp(),
+      })
+    })
+
+    const createdOrder = {
+      id: orderRef.id,
+      name: customerName || trimmedFirstName,
+      items: itemSummary,
+      total: totals.total,
+      status: 'pending',
+    }
+
+    saveClientDetails(form)
+    setSubmitted({
+      name: trimmedFirstName,
+      email: trimmedEmail,
+      orderId: orderRef.id,
+    })
+    setIsSuccess(true)
+    onComplete?.(createdOrder)
+  }
+
+  const handleSubmit = async (event) => {
     event.preventDefault()
-    if (!form.firstName || !form.email || !form.address) {
+    if (!form.firstName.trim() || !form.email.trim() || !form.address.trim()) {
       window.alert('Please fill in your name, email, and delivery address.')
       return
     }
 
-    setSubmitted({ name: form.firstName, email: form.email })
-    setIsSuccess(true)
+    if (!cart.length) {
+      window.alert('Your cart is empty.')
+      return
+    }
+
+    if (!hasAgreedToPolicy) {
+      window.alert('Please agree to the Booking & Shop Policies before submitting.')
+      return
+    }
+
+    setIsSubmitting(true)
+    setSubmitError('')
+
+    try {
+      await submitOrder()
+    } catch (error) {
+      console.error('Order transaction failed:', error)
+      setSubmitError(getFriendlySubmitError(error))
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleDone = () => {
-    onComplete?.()
+    resetSheet()
+    onClose?.()
   }
 
   return (
@@ -53,7 +188,7 @@ function CheckoutSheet({ isOpen, cart, onClose, onComplete }) {
       <div className="sheet">
         <div className="sheet-header">
           <h2>Checkout</h2>
-          <button className="close-btn" onClick={onClose} type="button">
+          <button className="close-btn" onClick={handleCloseSheet} type="button">
             ✕
           </button>
         </div>
@@ -68,6 +203,9 @@ function CheckoutSheet({ isOpen, cart, onClose, onComplete }) {
                 <br />
                 Confirmation sent to <strong>{submitted.email}</strong>. We'll
                 process and ship to your address shortly.
+                <br />
+                <br />
+                Order reference <strong>#{submitted.orderId}</strong>.
               </p>
               <button
                 className="btn btn-full"
@@ -77,6 +215,7 @@ function CheckoutSheet({ isOpen, cart, onClose, onComplete }) {
                   marginTop: '0.5rem',
                 }}
                 onClick={handleDone}
+                type="button"
               >
                 Done
               </button>
@@ -133,17 +272,48 @@ function CheckoutSheet({ isOpen, cart, onClose, onComplete }) {
                 🛒 {totals.count} item(s) —{' '}
                 <strong>Total: {formatCurrency(totals.total)}</strong>
               </div>
+              {submitError ? (
+                <p className="admin-auth-feedback admin-auth-feedback-error">
+                  {submitError}
+                </p>
+              ) : null}
+              <div className="fg policy-agreement">
+                <input
+                  type="checkbox"
+                  id="checkout-agree-policy"
+                  checked={hasAgreedToPolicy}
+                  onChange={(event) => setHasAgreedToPolicy(event.target.checked)}
+                  required
+                  style={{ width: 'auto' }}
+                />
+                <label htmlFor="checkout-agree-policy">
+                  I agree to the{' '}
+                  <button
+                    className="policy-inline-link"
+                    type="button"
+                    onClick={(event) => {
+                      event.preventDefault()
+                      setIsPolicyOpen(true)
+                    }}
+                  >
+                    Booking & Shop Policies
+                  </button>
+                  .
+                </label>
+              </div>
               <button
                 className="btn btn-primary btn-full"
                 style={{ background: 'var(--bead-accent)' }}
                 type="submit"
+                disabled={isSubmitting}
               >
-                📦 Place Order
+                {isSubmitting ? 'Processing Order...' : '📦 Place Order'}
               </button>
             </form>
           )}
         </div>
       </div>
+      <PolicyModal isOpen={isPolicyOpen} onClose={() => setIsPolicyOpen(false)} />
     </div>
   )
 }

@@ -16,6 +16,7 @@ import {
   getStoredClientDetails,
   saveClientDetails,
 } from '../../utils/clientDetailsStorage'
+import { sendOrderEmail } from '../../utils/emailService'
 
 const createInitialForm = () => ({
   ...getStoredClientDetails(),
@@ -129,6 +130,25 @@ function CheckoutSheet({ isOpen, cart, onClose, onComplete }) {
         createdAt: serverTimestamp(),
       })
     })
+
+    // Format cart items as HTML for email
+    const orderItemsHtml = `<ul>${cart
+      .map((item) => `<li>${item.name} x${Number(item.qty) || 0}</li>`)
+      .join('')}</ul>`
+
+    // Send order confirmation email - don't block on failure
+    try {
+      await sendOrderEmail({
+        client_name: customerName || trimmedFirstName,
+        order_items_html: orderItemsHtml,
+        total_amount: formatCurrency(totals.total),
+        delivery_address: trimmedAddress,
+        client_phone: trimmedPhone,
+      })
+    } catch (emailError) {
+      console.error('Order email failed:', emailError)
+      // Don't block the success state if email fails
+    }
 
     const createdOrder = {
       id: orderRef.id,

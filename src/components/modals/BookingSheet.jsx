@@ -7,6 +7,7 @@ import {
   getStoredClientDetails,
   saveClientDetails,
 } from '../../utils/clientDetailsStorage'
+import { sendBookingEmail } from '../../utils/emailService'
 
 const createInitialForm = () => ({
   ...getStoredClientDetails(),
@@ -68,6 +69,20 @@ function BookingSheet({ isOpen, styleName, onClose }) {
       agreedToPolicy: true,
       createdAt: serverTimestamp(),
     })
+
+    // Send booking confirmation email - don't block on failure
+    try {
+      await sendBookingEmail({
+        client_name: trimmedFirstName,
+        style_name: styleName,
+        appointment_date: form.date,
+        appointment_time: form.time,
+        client_phone: trimmedPhone,
+      })
+    } catch (emailError) {
+      console.error('Booking email failed:', emailError)
+      // Don't block the success state if email fails
+    }
 
     saveClientDetails(form)
     setSubmitted({

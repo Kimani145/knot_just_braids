@@ -1,0 +1,179 @@
+/* ===== REMINDER MODAL ===== */
+.reminder-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 500;
+  opacity: 0;
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.reminder-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--surface2);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  z-index: 501;
+  width: 90%;
+  max-width: 400px;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translate(-50%, -40%);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, -50%);
+    opacity: 1;
+  }
+}
+
+.reminder-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.reminder-modal-header h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+
+.reminder-close-btn {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.reminder-close-btn:hover {
+  color: var(--text);
+}
+
+.reminder-modal-body {
+  padding: 1.5rem;
+}
+
+.reminder-label {
+  margin: 0 0 1.5rem;
+  font-size: 0.95rem;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.reminder-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.reminder-btn {
+  position: relative;
+  padding: 1rem;
+  border: 2px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.reminder-btn:hover:not(:disabled) {
+  border-color: var(--salon-accent);
+  background: var(--salon-soft);
+}
+
+.reminder-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.whatsapp-btn {
+  color: #25d366;
+}
+
+.whatsapp-btn:hover:not(:disabled) {
+  border-color: #25d366;
+  background: #f0f7f2;
+}
+
+.email-btn {
+  color: var(--salon-accent);
+}
+
+.email-btn:hover:not(:disabled) {
+  border-color: var(--salon-accent);
+  background: var(--salon-soft);
+}
+
+.no-data-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: var(--danger);
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 0.4rem;
+  white-space: nowrap;
+}
+
+.reminder-modal-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.reminder-cancel-btn {
+  padding: 0.7rem 1.5rem;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.reminder-cancel-btn:hover {
+  background: var(--surface);
+  border-color: var(--muted);
+}

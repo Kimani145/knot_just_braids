@@ -125,6 +125,9 @@ function CheckoutSheet({ isOpen, cart, onClose, onComplete }) {
       }
 
       transaction.set(orderRef, {
+        clientName: customerName || trimmedFirstName,
+        clientEmail: trimmedEmail,
+        clientPhone: trimmedPhone,
         name: customerName || trimmedFirstName,
         firstName: trimmedFirstName,
         lastName: trimmedLastName,

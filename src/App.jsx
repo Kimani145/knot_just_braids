@@ -85,6 +85,10 @@ const mapBooking = (docSnapshot) => {
 
   return {
     id: docSnapshot.id,
+    ...data,
+    clientName: data.clientName || displayName || 'Unknown',
+    clientEmail: data.clientEmail || null,
+    clientPhone: data.clientPhone || null,
     name: displayName || 'Appointment request',
     style: data.style ?? data.service ?? 'Style request',
     date: data.date ?? 'Date pending',
@@ -106,6 +110,10 @@ const mapOrder = (docSnapshot) => {
 
   return {
     id: docSnapshot.id,
+    ...data,
+    clientName: data.clientName || displayName || 'Unknown',
+    clientEmail: data.clientEmail || null,
+    clientPhone: data.clientPhone || null,
     name: displayName || 'Order customer',
     items: itemSummary || 'Order details pending',
     total: Number(data.total) || 0,

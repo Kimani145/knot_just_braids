@@ -12,9 +12,6 @@ import StatsRow from './StatsRow'
 import ImageUploader from './ImageUploader'
 import AdminGallery from './AdminGallery'
 import SecurityDialog from './SecurityDialog'
-import ReminderModal from './ReminderModal'
-import UrgentAlerts from './UrgentAlerts'
-import AdminHistory from './AdminHistory'
 import formatCurrency from '../../utils/formatCurrency'
 import { SkeletonRow } from '../layout/Skeletons'
 import { db } from '../../firebase'
@@ -231,26 +228,12 @@ function AdminView({
   const [inventoryEditForm, setInventoryEditForm] = useState(initialInventoryEditForm)
   const [inventoryEditFeedback, setInventoryEditFeedback] = useState(null)
   const [isSavingInventoryEdit, setIsSavingInventoryEdit] = useState(false)
-  const [isReminderOpen, setIsReminderOpen] = useState(false)
-  const [currentReminderItem, setCurrentReminderItem] = useState(null)
-  const [currentReminderType, setCurrentReminderType] = useState(null)
-  const [viewMode, setViewMode] = useState('dashboard')
 
-  // Filter to show only pending items in dashboard
-  const pendingBookings = useMemo(
-    () => bookings.filter((booking) => booking.status === 'pending'),
-    [bookings],
-  )
-
-  const pendingOrders = useMemo(
-    () => orders.filter((order) => order.status === 'pending'),
-    [orders],
-  )
-
-  const pendingCount = useMemo(
-    () => pendingBookings.length + pendingOrders.length,
-    [pendingBookings, pendingOrders],
-  )
+  const pendingCount = useMemo(() => {
+    const pendingBookings = bookings.filter((booking) => booking.status === 'pending').length
+    const pendingOrders = orders.filter((order) => order.status === 'pending').length
+    return pendingBookings + pendingOrders
+  }, [bookings, orders])
 
   const lowStockItems = useMemo(
     () => beadProducts.filter((product) => product.stock > 0 && product.stock < 3),
@@ -263,7 +246,6 @@ function AdminView({
   )
 
   const isGallery = adminMode === 'gallery'
-  const isHistory = viewMode === 'history'
 
   const pushDashboardFeedback = (type, message) => {
     setDashboardFeedback({ type, message })
@@ -281,87 +263,6 @@ function AdminView({
 
   const handleToggleMode = () => {
     setAdminMode((prev) => (prev === 'gallery' ? 'dashboard' : 'gallery'))
-  }
-
-  const handleToggleViewMode = (mode) => {
-    setViewMode(mode)
-    setAdminMode('dashboard')
-  }
-
-  const handleOpenReminder = (item, type) => {
-    setCurrentReminderItem({
-      ...item,
-      clientName: item.clientName || item.name || 'Unknown',
-      clientEmail: item.clientEmail || null,
-      clientPhone: item.clientPhone || null,
-    })
-    setCurrentReminderType(type)
-    setIsReminderOpen(true)
-  }
-
-  const handleCloseReminder = () => {
-    setIsReminderOpen(false)
-    setCurrentReminderItem(null)
-    setCurrentReminderType(null)
-  }
-
-  const handleSendReminderWhatsApp = async () => {
-    if (!currentReminderItem) return
-
-    const phone = normalizeWhatsappPhone(currentReminderItem.clientPhone)
-    if (!phone) {
-      pushDashboardFeedback('error', 'No phone number available for this client.')
-      handleCloseReminder()
-      return
-    }
-
-    const clientName = currentReminderItem.clientName || currentReminderItem.name || 'there'
-    const appointmentDetails =
-      currentReminderType === 'booking'
-        ? `${currentReminderItem.style || 'your style'} on ${currentReminderItem.date || 'your date'} at ${currentReminderItem.time || 'your time'}`
-        : `your order ${currentReminderItem.id ? `#${currentReminderItem.id}` : ''} (${currentReminderItem.items || 'order details'})`
-
-    const message = `Hi ${clientName}, this is a friendly reminder from Knot Just regarding your upcoming ${
-      currentReminderType === 'booking' ? 'appointment' : 'order'
-    }. ${appointmentDetails}.`
-
-    const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
-    window.open(url, '_blank', 'noopener,noreferrer')
-    pushDashboardFeedback('success', 'WhatsApp reminder opened in a new tab.')
-    handleCloseReminder()
-  }
-
-  const handleSendReminderEmail = async () => {
-    if (!currentReminderItem) return
-
-    if (!currentReminderItem.clientEmail) {
-      pushDashboardFeedback('error', 'No email address available for this client.')
-      handleCloseReminder()
-      return
-    }
-
-    try {
-      const clientName = currentReminderItem.clientName || currentReminderItem.name || 'there'
-      const appointmentDetails =
-        currentReminderType === 'booking'
-          ? `${currentReminderItem.style || 'your style'} on ${currentReminderItem.date || 'your date'} at ${currentReminderItem.time || 'your time'}`
-          : `your order ${currentReminderItem.id ? `#${currentReminderItem.id}` : ''} (${currentReminderItem.items || 'order details'})`
-
-      await sendDynamicEmail({
-        to_email: currentReminderItem.clientEmail,
-        to_name: clientName,
-        subject:
-          currentReminderType === 'booking'
-            ? 'Appointment Reminder from Knot Just'
-            : 'Order Reminder from Knot Just',
-        html_content: generateReminderHTML(clientName, appointmentDetails),
-      })
-      pushDashboardFeedback('success', 'Reminder email sent successfully.')
-      handleCloseReminder()
-    } catch (error) {
-      console.error('Failed to send reminder email:', error)
-      pushDashboardFeedback('error', 'Unable to send reminder email right now.')
-    }
   }
 
   const handleSalonChange = (field) => (event) => {
@@ -655,9 +556,66 @@ function AdminView({
     }
   }
 
-  // Use modal-based reminder system
-  const handleReminder = (item, type) => {
-    handleOpenReminder(item, type)
+  const handleReminder = async (item, type) => {
+    const channel = window
+      .prompt('Send reminder via "WhatsApp" or "Email"?', 'WhatsApp')
+      ?.trim()
+      .toLowerCase()
+
+    if (!channel) {
+      return
+    }
+
+    const clientName = item.name || 'there'
+    const appointmentDetails =
+      type === 'booking'
+        ? `${item.style || 'your style'} on ${item.date || 'your date'} at ${item.time || 'your time'}`
+        : `your order ${item.id ? `#${item.id}` : ''} (${item.items || 'order details'})`
+
+    if (channel === 'whatsapp' || channel === 'wa') {
+      const phone = normalizeWhatsappPhone(item.phone)
+      if (!phone) {
+        window.alert('No phone number available for this client.')
+        return
+      }
+
+      const message = `Hi ${clientName}, this is a friendly reminder from Knot Just regarding your upcoming ${
+        type === 'booking' ? 'appointment' : 'order'
+      }. ${appointmentDetails}.`
+
+      const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
+      window.open(url, '_blank', 'noopener,noreferrer')
+      pushDashboardFeedback('success', 'WhatsApp reminder opened in a new tab.')
+      return
+    }
+
+    if (channel === 'email') {
+      if (!item.email) {
+        window.alert('No email address available for this client.')
+        return
+      }
+
+      try {
+        await sendDynamicEmail({
+          to_email: item.email,
+          to_name: clientName,
+          subject:
+            type === 'booking'
+              ? 'Appointment Reminder from Knot Just'
+              : 'Order Reminder from Knot Just',
+          html_content: generateReminderHTML(clientName, appointmentDetails),
+        })
+        window.alert('Reminder email sent successfully.')
+        pushDashboardFeedback('success', 'Reminder email sent successfully.')
+      } catch (error) {
+        console.error('Failed to send reminder email:', error)
+        pushDashboardFeedback('error', 'Unable to send reminder email right now.')
+      }
+
+      return
+    }
+
+    window.alert('Please type either "WhatsApp" or "Email".')
   }
 
   const renderGallerySelection = (formType, asset) => {
@@ -692,16 +650,6 @@ function AdminView({
           <button className="a-btn" onClick={() => setIsSecurityOpen(true)}>
             🔐 Security
           </button>
-          <button className="a-btn" onClick={() => handleToggleViewMode('dashboard')} style={{
-            opacity: viewMode === 'dashboard' ? 1 : 0.6,
-          }}>
-            📊 Dashboard
-          </button>
-          <button className="a-btn" onClick={() => handleToggleViewMode('history')} style={{
-            opacity: viewMode === 'history' ? 1 : 0.6,
-          }}>
-            🗄️ History
-          </button>
           <button className="a-btn" onClick={handleToggleMode}>
             {isGallery ? '← Dashboard' : '🖼️ Asset Gallery'}
           </button>
@@ -726,28 +674,10 @@ function AdminView({
         onSubmit={handleUpdateInventoryItem}
       />
 
-      <ReminderModal
-        isOpen={isReminderOpen}
-        item={currentReminderItem}
-        type={currentReminderType}
-        onSendWhatsApp={handleSendReminderWhatsApp}
-        onSendEmail={handleSendReminderEmail}
-        onClose={handleCloseReminder}
-        clientPhone={currentReminderItem?.clientPhone}
-        clientEmail={currentReminderItem?.clientEmail}
-      />
-
       {isGallery ? (
         <AdminGallery
           onRepublishToSalon={(asset) => handleRepublishAsset(asset, 'salon')}
           onRepublishToBeads={(asset) => handleRepublishAsset(asset, 'beads')}
-        />
-      ) : isHistory ? (
-        <AdminHistory
-          bookings={bookings}
-          orders={orders}
-          loadingBookings={loadingBookings}
-          loadingOrders={loadingOrders}
         />
       ) : (
         <>
@@ -760,13 +690,6 @@ function AdminView({
               productsCount={beadProducts.length}
               pendingCount={pendingCount}
             />
-          </div>
-
-          <div
-            className="admin-panel span2"
-            style={{ background: 'transparent', padding: '0 1.5rem 1rem' }}
-          >
-            <UrgentAlerts bookings={pendingBookings} orders={pendingOrders} />
           </div>
 
           {dashboardFeedback ? (
@@ -1076,8 +999,8 @@ function AdminView({
               <div id="adminBookings">
                 {loadingBookings ? (
                   renderSkeletonRows(3, 'bookings')
-                ) : pendingBookings.length ? (
-                  pendingBookings.map((item) => {
+                ) : bookings.length ? (
+                  bookings.map((item) => {
                     const chipClass =
                       item.status === 'pending'
                         ? 'sc-pending'
@@ -1140,8 +1063,8 @@ function AdminView({
               <div id="adminOrders">
                 {loadingOrders ? (
                   renderSkeletonRows(3, 'orders')
-                ) : pendingOrders.length ? (
-                  pendingOrders.map((item) => (
+                ) : orders.length ? (
+                  orders.map((item) => (
                     <div className="b-row" key={item.id}>
                       <div className="b-top">
                         <span className="b-name">

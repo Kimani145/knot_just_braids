@@ -55,6 +55,9 @@ function BookingSheet({ isOpen, styleName, styleImageUrl, onClose }) {
     const trimmedLastName = form.lastName.trim()
     const trimmedEmail = form.email.trim()
     const trimmedPhone = form.phone.trim()
+    const clientName =
+      [trimmedFirstName, trimmedLastName].filter(Boolean).join(' ') ||
+      trimmedFirstName
     console.info('[BookingSheet] Creating booking document...', {
       styleName,
       date: form.date,
@@ -64,7 +67,10 @@ function BookingSheet({ isOpen, styleName, styleImageUrl, onClose }) {
     })
 
     const bookingRef = await addDoc(collection(db, BOOKINGS_COLLECTION), {
-      name: [trimmedFirstName, trimmedLastName].filter(Boolean).join(' '),
+      clientName,
+      clientEmail: trimmedEmail,
+      clientPhone: trimmedPhone,
+      name: clientName,
       firstName: trimmedFirstName,
       lastName: trimmedLastName,
       email: trimmedEmail,
@@ -82,7 +88,6 @@ function BookingSheet({ isOpen, styleName, styleImageUrl, onClose }) {
 
     // Send booking confirmation email - don't block on failure
     try {
-      const clientName = [trimmedFirstName, trimmedLastName].filter(Boolean).join(' ') || trimmedFirstName
       const bookingHtml = generateBookingHTML({
         clientName,
         styleName,

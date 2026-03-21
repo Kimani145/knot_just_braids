@@ -1,0 +1,211 @@
+/* ===== ADMIN HISTORY ===== */
+.admin-history-view {
+  width: 100%;
+}
+
+.history-header {
+  margin-bottom: 0;
+}
+
+.history-header h2 {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 0.5rem;
+}
+
+.history-header p {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+/* History Ledger */
+.history-ledger {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.history-ledger-header {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--surface);
+  border-bottom: 2px solid var(--border);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--muted);
+  letter-spacing: 0.5px;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+.history-ledger-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  padding: 1.2rem 1rem;
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+  font-size: 0.95rem;
+  transition: background 0.2s;
+  background: var(--surface);
+}
+
+.history-ledger-row:last-child {
+  border-bottom: none;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+
+.history-ledger-row:hover {
+  background: var(--surface2);
+}
+
+.history-ledger-row.confirmed {
+  border-left: 3px solid var(--success);
+}
+
+.history-ledger-row.declined {
+  border-left: 3px solid var(--danger);
+  opacity: 0.7;
+}
+
+.history-ledger-row.fulfilled {
+  border-left: 3px solid var(--bead-accent);
+}
+
+.history-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.history-cell.client-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.history-cell.style-name,
+.history-cell.items {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.history-cell.date {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.history-cell.amount {
+  font-weight: 600;
+  color: var(--salon-accent);
+}
+
+.history-cell.status {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.4rem 0.8rem;
+  border-radius: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status-badge.confirmed {
+  background: #e8f5e9;
+  color: var(--success);
+}
+
+.status-badge.declined {
+  background: #ffebee;
+  color: var(--danger);
+}
+
+[data-theme='dark'] .status-badge.confirmed {
+  background: rgba(46, 90, 44, 0.2);
+  color: #81c784;
+}
+
+[data-theme='dark'] .status-badge.declined {
+  background: rgba(155, 44, 44, 0.2);
+  color: #ef9a9a;
+}
+
+/* History Summary */
+.history-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  padding: 1.5rem;
+  background: var(--surface2);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.summary-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.summary-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.summary-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--salon-accent);
+}
+
+.summary-value.declined-count {
+  color: var(--danger);
+}
+
+/* Responsive */
+@media (max-width: 920px) {
+  .history-ledger-header,
+  .history-ledger-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  .history-ledger-header span:nth-child(3),
+  .history-ledger-header span:nth-child(4),
+  .history-ledger-row .history-cell:nth-child(3),
+  .history-ledger-row .history-cell:nth-child(4) {
+    display: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .history-ledger-header,
+  .history-ledger-row {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  .history-ledger-header span:nth-child(2),
+  .history-ledger-row .history-cell:nth-child(2),
+  .history-ledger-header span:nth-child(3),
+  .history-ledger-row .history-cell:nth-child(3),
+  .history-ledger-header span:nth-child(4),
+  .history-ledger-row .history-cell:nth-child(4) {
+    display: none;
+  }
+
+  .history-ledger-header {
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  }
+}

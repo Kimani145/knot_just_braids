@@ -1,19 +1,19 @@
 /* ===== TOKENS ===== */
 :root {
   --bg: #f4f6f0;
-  --surface: #ffffff;
-  --surface2: #ecf1e6;
-  --text: #182014;
-  --muted: #66705d;
-  --border: #d5ddcf;
+  --surface: #f8faf8;
+  --surface2: #ffffff;
+  --text: #1a2b1a;
+  --muted: #4a5344;
+  --border: #c8d0c3;
   --salon-accent: #2e5a2c;
   --salon-soft: #e8f1e4;
   --bead-accent: #557a46;
   --bead-soft: #eef3e8;
   --success: #2e5a2c;
   --danger: #9b2c2c;
-  --shadow: 0 4px 24px rgba(0, 0, 0, 0.07);
-  --shadow-lg: 0 12px 48px rgba(0, 0, 0, 0.12);
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.08);
   --radius: 1rem;
   --radius-sm: 0.6rem;
   --transition: 0.28s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1598,6 +1598,16 @@ nav {
 .tag-bookings {
   background: rgba(130, 100, 200, 0.2);
   color: #9a80d0;
+}
+
+.tag-history {
+  background: rgba(100, 100, 100, 0.2);
+  color: #666;
+}
+
+.tag-declined {
+  background: rgba(200, 100, 100, 0.2);
+  color: #d97070;
 }
 
 /* Admin add form */

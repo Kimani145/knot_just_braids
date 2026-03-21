@@ -7,7 +7,8 @@ import {
   getStoredClientDetails,
   saveClientDetails,
 } from '../../utils/clientDetailsStorage'
-import { sendBookingEmail } from '../../utils/emailService'
+import { sendDynamicEmail } from '../../utils/emailService'
+import { generateBookingHTML } from '../../utils/emailTemplates'
 
 const createInitialForm = () => ({
   ...getStoredClientDetails(),
@@ -17,7 +18,7 @@ const createInitialForm = () => ({
   notes: '',
 })
 
-function BookingSheet({ isOpen, styleName, onClose }) {
+function BookingSheet({ isOpen, styleName, styleImageUrl, onClose }) {
   const [form, setForm] = useState(createInitialForm)
   const [isSuccess, setIsSuccess] = useState(false)
   const [submitted, setSubmitted] = useState(null)
@@ -54,6 +55,14 @@ function BookingSheet({ isOpen, styleName, onClose }) {
     const trimmedLastName = form.lastName.trim()
     const trimmedEmail = form.email.trim()
     const trimmedPhone = form.phone.trim()
+    console.info('[BookingSheet] Creating booking document...', {
+      styleName,
+      date: form.date,
+      time: form.time,
+      hasEmail: Boolean(trimmedEmail),
+      hasPhone: Boolean(trimmedPhone),
+    })
+
     const bookingRef = await addDoc(collection(db, BOOKINGS_COLLECTION), {
       name: [trimmedFirstName, trimmedLastName].filter(Boolean).join(' '),
       firstName: trimmedFirstName,
@@ -69,18 +78,37 @@ function BookingSheet({ isOpen, styleName, onClose }) {
       agreedToPolicy: true,
       createdAt: serverTimestamp(),
     })
+    console.info('[BookingSheet] Booking document created', { bookingId: bookingRef.id })
 
     // Send booking confirmation email - don't block on failure
     try {
-      await sendBookingEmail({
-        client_name: trimmedFirstName,
-        style_name: styleName,
-        appointment_date: form.date,
-        appointment_time: form.time,
-        client_phone: trimmedPhone,
+      const clientName = [trimmedFirstName, trimmedLastName].filter(Boolean).join(' ') || trimmedFirstName
+      const bookingHtml = generateBookingHTML({
+        clientName,
+        styleName,
+        date: form.date,
+        time: form.time,
+        phone: trimmedPhone,
+      })
+
+      console.info('[BookingSheet] Sending booking confirmation email...', {
+        bookingId: bookingRef.id,
+      })
+      await sendDynamicEmail({
+        to_email: trimmedEmail,
+        to_name: clientName,
+        subject: `Appointment Request Received: ${styleName}`,
+        html_content: bookingHtml,
+      })
+      console.info('[BookingSheet] Booking confirmation email sent', {
+        bookingId: bookingRef.id,
       })
     } catch (emailError) {
-      console.error('Booking email failed:', emailError)
+      console.error('[BookingSheet] Booking email failed', {
+        bookingId: bookingRef.id,
+        message: emailError?.message,
+        status: emailError?.status,
+      })
       // Don't block the success state if email fails
     }
 
@@ -117,9 +145,13 @@ function BookingSheet({ isOpen, styleName, onClose }) {
     setSubmitError('')
 
     try {
+      console.info('[BookingSheet] Starting booking submit')
       await submitBooking()
+      console.info('[BookingSheet] Booking submit finished successfully')
     } catch (error) {
-      console.error('Booking submission failed:', error)
+      console.error('[BookingSheet] Booking submission failed', {
+        message: error?.message,
+      })
       setSubmitError('Unable to submit your appointment request right now.')
     } finally {
       setIsSubmitting(false)

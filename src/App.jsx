@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { onAuthStateChanged, signOut as signOutAuth } from 'firebase/auth'
 import { collection, onSnapshot } from 'firebase/firestore'
 import { SpeedInsights } from '@vercel/speed-insights/react'
+import AnnouncementBar from './components/AnnouncementBar'
 import Navigation from './components/layout/Navigation'
 import FeedToggle from './components/layout/FeedToggle'
 import Footer from './components/layout/Footer'
@@ -130,6 +131,7 @@ function App() {
   const [adminMode, setAdminMode] = useState('dashboard')
   const [isBookingOpen, setIsBookingOpen] = useState(false)
   const [bookingStyle, setBookingStyle] = useState('')
+  const [bookingStyleImageUrl, setBookingStyleImageUrl] = useState('')
   const [isCartOpen, setIsCartOpen] = useState(false)
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
 
@@ -145,6 +147,15 @@ function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setAdminUser(user)
+      if (user) {
+        setLoadingBookings(true)
+        setLoadingOrders(true)
+      } else {
+        setBookings([])
+        setOrders([])
+        setLoadingBookings(false)
+        setLoadingOrders(false)
+      }
       setIsAuthReady(true)
     })
 
@@ -184,6 +195,8 @@ function App() {
   }, [])
 
   useEffect(() => {
+    if (!adminUser) return
+
     const unsubscribe = onSnapshot(
       collection(db, BOOKINGS_COLLECTION),
       (snapshot) => {
@@ -198,9 +211,11 @@ function App() {
     )
 
     return () => unsubscribe()
-  }, [])
+  }, [adminUser])
 
   useEffect(() => {
+    if (!adminUser) return
+
     const unsubscribe = onSnapshot(
       collection(db, ORDERS_COLLECTION),
       (snapshot) => {
@@ -215,7 +230,7 @@ function App() {
     )
 
     return () => unsubscribe()
-  }, [])
+  }, [adminUser])
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -285,11 +300,13 @@ function App() {
 
   const handleBookStyle = (item) => {
     setBookingStyle(item.name)
+    setBookingStyleImageUrl(item.assetUrl || item.image || '')
     setIsBookingOpen(true)
   }
 
   const handleCloseBooking = () => {
     setIsBookingOpen(false)
+    setBookingStyleImageUrl('')
   }
 
   const handleAddToCart = (item) => {
@@ -331,6 +348,7 @@ function App() {
         id="view-client"
         className={`view${currentView === 'client' ? ' active' : ''}`}
       >
+        <AnnouncementBar />
         <Navigation
           theme={theme}
           onToggleTheme={handleToggleTheme}
@@ -387,6 +405,7 @@ function App() {
       <BookingSheet
         isOpen={isBookingOpen}
         styleName={bookingStyle}
+        styleImageUrl={bookingStyleImageUrl}
         onClose={handleCloseBooking}
       />
       <CartSheet

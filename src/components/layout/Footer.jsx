@@ -4,7 +4,10 @@ function Footer({ onSwitchToAdmin }) {
       <span className="logo">
         Knot Just<span style={{ color: 'var(--salon-accent)' }}>.</span>
       </span>
-      <p>Your home salon & beadwork destination — all in one place.</p>
+      <p>
+        Always do you but let me do your hair 🌸 Home-based and mobile braider 📍
+        Kasarani (Available for housecalls).
+      </p>
       <div className="admin-login-wrapper">
         <button
           onClick={onSwitchToAdmin}

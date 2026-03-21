@@ -16,7 +16,8 @@ import {
   getStoredClientDetails,
   saveClientDetails,
 } from '../../utils/clientDetailsStorage'
-import { sendOrderEmail } from '../../utils/emailService'
+import { sendDynamicEmail } from '../../utils/emailService'
+import { generateOrderHTML } from '../../utils/emailTemplates'
 
 const createInitialForm = () => ({
   ...getStoredClientDetails(),
@@ -85,6 +86,14 @@ function CheckoutSheet({ isOpen, cart, onClose, onComplete }) {
       .join(', ')
     const orderRef = doc(collection(db, ORDERS_COLLECTION))
 
+    console.info('[CheckoutSheet] Starting order transaction...', {
+      orderId: orderRef.id,
+      itemCount: cart.length,
+      total: totals.total,
+      hasEmail: Boolean(trimmedEmail),
+      hasAddress: Boolean(trimmedAddress),
+    })
+
     await runTransaction(db, async (transaction) => {
       for (const item of cart) {
         const productRef = doc(db, BEAD_PRODUCTS_COLLECTION, String(item.id))
@@ -104,6 +113,13 @@ function CheckoutSheet({ isOpen, cart, onClose, onComplete }) {
         if (currentStock < quantity) {
           throw new Error(`Not enough stock for ${item.name}`)
         }
+
+        console.info('[CheckoutSheet] Stock check passed', {
+          orderId: orderRef.id,
+          item: item.name,
+          requestedQty: quantity,
+          currentStock,
+        })
 
         transaction.update(productRef, { stock: currentStock - quantity })
       }
@@ -130,23 +146,55 @@ function CheckoutSheet({ isOpen, cart, onClose, onComplete }) {
         createdAt: serverTimestamp(),
       })
     })
+    console.info('[CheckoutSheet] Order transaction committed', { orderId: orderRef.id })
 
-    // Format cart items as HTML for email
-    const orderItemsHtml = `<ul>${cart
-      .map((item) => `<li>${item.name} x${Number(item.qty) || 0}</li>`)
-      .join('')}</ul>`
+    // Build a richer HTML summary for EmailJS templates with item thumbnails.
+    const orderItemsHtml = cart
+      .map((item) => {
+        const quantity = Number(item.qty) || 0
+        const unitPrice = Number(item.price) || 0
+        const imageUrl = item.image || item.assetUrl || ''
+
+        return `
+  <div style="display: flex; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
+    <img src="${imageUrl}" alt="${item.name}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px; margin-right: 15px;" />
+    <div>
+      <p style="margin: 0; font-weight: bold; color: #1a1a1a;">${item.name}</p>
+      <p style="margin: 0; font-size: 0.9em; color: #555;">Qty: ${quantity} | Kshs ${unitPrice * quantity}</p>
+    </div>
+  </div>
+`
+      })
+      .join('')
 
     // Send order confirmation email - don't block on failure
     try {
-      await sendOrderEmail({
-        client_name: customerName || trimmedFirstName,
-        order_items_html: orderItemsHtml,
-        total_amount: formatCurrency(totals.total),
-        delivery_address: trimmedAddress,
-        client_phone: trimmedPhone,
+      const orderHtml = generateOrderHTML({
+        clientName: customerName || trimmedFirstName,
+        orderId: orderRef.id,
+        total: formatCurrency(totals.total),
+        address: trimmedAddress,
+        itemsHtml: orderItemsHtml,
+      })
+
+      console.info('[CheckoutSheet] Sending order confirmation email...', {
+        orderId: orderRef.id,
+      })
+      await sendDynamicEmail({
+        to_email: trimmedEmail,
+        to_name: customerName || trimmedFirstName,
+        subject: `Order Confirmation #${orderRef.id}`,
+        html_content: orderHtml,
+      })
+      console.info('[CheckoutSheet] Order confirmation email sent', {
+        orderId: orderRef.id,
       })
     } catch (emailError) {
-      console.error('Order email failed:', emailError)
+      console.error('[CheckoutSheet] Order email failed', {
+        orderId: orderRef.id,
+        message: emailError?.message,
+        status: emailError?.status,
+      })
       // Don't block the success state if email fails
     }
 
@@ -189,9 +237,13 @@ function CheckoutSheet({ isOpen, cart, onClose, onComplete }) {
     setSubmitError('')
 
     try {
+      console.info('[CheckoutSheet] Starting checkout submit')
       await submitOrder()
+      console.info('[CheckoutSheet] Checkout submit finished successfully')
     } catch (error) {
-      console.error('Order transaction failed:', error)
+      console.error('[CheckoutSheet] Order transaction failed', {
+        message: error?.message,
+      })
       setSubmitError(getFriendlySubmitError(error))
     } finally {
       setIsSubmitting(false)

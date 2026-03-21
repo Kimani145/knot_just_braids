@@ -40,7 +40,7 @@ function HeroStrip({ activeFeed, onPrimaryAction }) {
         </button>
         <a
           className="btn btn-outline"
-          href="https://wa.me/"
+          href="https://wa.me/254797343855?text=Hi!%20I'm%20reaching%20out%20from%20the%20Knot%20Just%20website."
           target="_blank"
           rel="noreferrer"
         >

@@ -34,7 +34,7 @@ function ClientView({
         <span>Find us →</span>
         <a
           className="s-icon s-ig"
-          href="https://instagram.com/knotjust"
+          href="https://www.instagram.com/knot.just.braids_/"
           title="Instagram"
           target="_blank"
           rel="noopener noreferrer"
@@ -52,7 +52,7 @@ function ClientView({
         </a>
         <a
           className="s-icon s-tt"
-          href="https://tiktok.com/@knotjust"
+          href="https://www.tiktok.com/@knot.justbraids"
           title="TikTok"
           target="_blank"
           rel="noopener noreferrer"
@@ -61,7 +61,7 @@ function ClientView({
         </a>
         <a
           className="s-icon s-wa"
-          href="https://wa.me/254768411265?text=Hi!%20I'm%20reaching%20out%20from%20the%20Knot%20Just%20website."
+          href="https://wa.me/254797343855?text=Hi!%20I'm%20reaching%20out%20from%20the%20Knot%20Just%20website."
           title="WhatsApp"
           target="_blank"
           rel="noopener noreferrer"

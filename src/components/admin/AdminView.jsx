@@ -23,6 +23,8 @@ import {
   SALON_BACKGROUNDS,
   SALON_STYLES_COLLECTION,
 } from '../../constants/catalog'
+import { sendDynamicEmail } from '../../utils/emailService'
+import { generateReminderHTML } from '../../utils/emailTemplates'
 
 const initialSalonForm = {
   name: '',
@@ -80,6 +82,20 @@ const createGalleryAsset = (asset) => ({
   internalNote: asset.internalNote ?? '',
   source: 'gallery',
 })
+
+const normalizeWhatsappPhone = (phone) => {
+  const digits = String(phone || '').replace(/\D/g, '')
+
+  if (!digits) {
+    return ''
+  }
+
+  if (digits.startsWith('0')) {
+    return `254${digits.slice(1)}`
+  }
+
+  return digits
+}
 
 function InventoryQuickEditModal({
   editForm,
@@ -540,6 +556,68 @@ function AdminView({
     }
   }
 
+  const handleReminder = async (item, type) => {
+    const channel = window
+      .prompt('Send reminder via "WhatsApp" or "Email"?', 'WhatsApp')
+      ?.trim()
+      .toLowerCase()
+
+    if (!channel) {
+      return
+    }
+
+    const clientName = item.name || 'there'
+    const appointmentDetails =
+      type === 'booking'
+        ? `${item.style || 'your style'} on ${item.date || 'your date'} at ${item.time || 'your time'}`
+        : `your order ${item.id ? `#${item.id}` : ''} (${item.items || 'order details'})`
+
+    if (channel === 'whatsapp' || channel === 'wa') {
+      const phone = normalizeWhatsappPhone(item.phone)
+      if (!phone) {
+        window.alert('No phone number available for this client.')
+        return
+      }
+
+      const message = `Hi ${clientName}, this is a friendly reminder from Knot Just regarding your upcoming ${
+        type === 'booking' ? 'appointment' : 'order'
+      }. ${appointmentDetails}.`
+
+      const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
+      window.open(url, '_blank', 'noopener,noreferrer')
+      pushDashboardFeedback('success', 'WhatsApp reminder opened in a new tab.')
+      return
+    }
+
+    if (channel === 'email') {
+      if (!item.email) {
+        window.alert('No email address available for this client.')
+        return
+      }
+
+      try {
+        await sendDynamicEmail({
+          to_email: item.email,
+          to_name: clientName,
+          subject:
+            type === 'booking'
+              ? 'Appointment Reminder from Knot Just'
+              : 'Order Reminder from Knot Just',
+          html_content: generateReminderHTML(clientName, appointmentDetails),
+        })
+        window.alert('Reminder email sent successfully.')
+        pushDashboardFeedback('success', 'Reminder email sent successfully.')
+      } catch (error) {
+        console.error('Failed to send reminder email:', error)
+        pushDashboardFeedback('error', 'Unable to send reminder email right now.')
+      }
+
+      return
+    }
+
+    window.alert('Please type either "WhatsApp" or "Email".')
+  }
+
   const renderGallerySelection = (formType, asset) => {
     if (!asset?.assetUrl || asset.source !== 'gallery') return null
 
@@ -957,6 +1035,13 @@ function AdminView({
                             >
                               ✕ Decline
                             </button>
+                            <button
+                              className="confirm-btn"
+                              type="button"
+                              onClick={() => handleReminder(item, 'booking')}
+                            >
+                              🔔 Remind
+                            </button>
                           </div>
                         ) : null}
                       </div>
@@ -1009,6 +1094,13 @@ function AdminView({
                             onClick={() => handleOrderStatus(item.id, 'fulfilled')}
                           >
                             📦 Mark Fulfilled
+                          </button>
+                          <button
+                            className="confirm-btn"
+                            type="button"
+                            onClick={() => handleReminder(item, 'order')}
+                          >
+                            🔔 Remind
                           </button>
                         </div>
                       ) : null}

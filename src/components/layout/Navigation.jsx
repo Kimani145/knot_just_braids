@@ -10,19 +10,21 @@ function Navigation({
 
   return (
     <nav>
-      <div className="logo" onClick={onLogoClick}>
-        Knot Just<span className="dot">.</span>
-      </div>
-      <div className="nav-right">
-        <button className="icon-btn" onClick={onToggleTheme} title="Toggle theme">
-          {themeIcon}
-        </button>
-        <button className="icon-btn cart-btn" onClick={onOpenCart} title="Cart">
-          🛒
-          <span className={`cart-count${showCount ? ' show' : ''}`}>
-            {cartCount}
-          </span>
-        </button>
+      <div className="nav-header-row">
+        <div className="logo" onClick={onLogoClick}>
+          Knot Just<span className="dot">.</span>
+        </div>
+        <div className="nav-right">
+          <button className="icon-btn" onClick={onToggleTheme} title="Toggle theme">
+            {themeIcon}
+          </button>
+          <button className="icon-btn cart-btn" onClick={onOpenCart} title="Cart">
+            🛒
+            <span className={`cart-count${showCount ? ' show' : ''}`}>
+              {cartCount}
+            </span>
+          </button>
+        </div>
       </div>
     </nav>
   )

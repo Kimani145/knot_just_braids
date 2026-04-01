@@ -1,4 +1,4 @@
-function Footer({ onSwitchToAdmin }) {
+function Footer() {
   return (
     <footer>
       <span className="logo">
@@ -8,15 +8,6 @@ function Footer({ onSwitchToAdmin }) {
         Always do you but let me do your hair 🌸 Home-based and mobile braider 📍
         Kasarani (Available for housecalls).
       </p>
-      <div className="admin-login-wrapper">
-        <button
-          onClick={onSwitchToAdmin}
-          className="admin-login-button"
-          aria-label="Staff Portal"
-        >
-          Staff Portal
-        </button>
-      </div>
     </footer>
   )
 }

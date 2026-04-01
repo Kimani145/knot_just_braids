@@ -374,7 +374,7 @@ function App() {
           onBook={handleBookStyle}
           onAddToCart={handleAddToCart}
         />
-        <Footer onSwitchToAdmin={switchToAdmin} />
+        <Footer />
       </div>
 
       <div

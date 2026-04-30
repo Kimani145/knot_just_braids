@@ -235,6 +235,7 @@ function AdminView({
   const [currentReminderItem, setCurrentReminderItem] = useState(null)
   const [currentReminderType, setCurrentReminderType] = useState(null)
   const [viewMode, setViewMode] = useState('dashboard')
+  const [previewPhoto, setPreviewPhoto] = useState(null)
 
   // Filter to show only pending items in dashboard
   const pendingBookings = useMemo(
@@ -1096,6 +1097,25 @@ function AdminView({
                         <div className="b-sub">
                           {item.style} · {item.date} at {item.time}
                         </div>
+                        {item.notes && (
+                          <div style={{ fontSize: '0.85rem', color: 'var(--text-color)', opacity: 0.8, marginTop: '4px' }}>
+                            <strong>Notes:</strong> {item.notes}
+                          </div>
+                        )}
+                        {((item.referencePhotoUrls && item.referencePhotoUrls.length > 0) || item.referencePhotoUrl) && (
+                          <div style={{ marginTop: '8px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                            {(item.referencePhotoUrls || [item.referencePhotoUrl]).map((url, i) => url && (
+                              <img
+                                key={i}
+                                src={url}
+                                alt="Reference"
+                                style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px', cursor: 'pointer', border: '1px solid var(--border-color)' }}
+                                onClick={() => setPreviewPhoto(url)}
+                                title="Click to view reference"
+                              />
+                            ))}
+                          </div>
+                        )}
                         {item.status === 'pending' ? (
                           <div className="b-actions">
                             <button
@@ -1192,6 +1212,41 @@ function AdminView({
             </AdminPanel>
           </div>
         </>
+      )}
+      {previewPhoto && (
+        <div
+          className="overlay open"
+          onClick={() => setPreviewPhoto(null)}
+          style={{ zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <div
+            className="sheet"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '600px', width: '90%', height: 'auto', maxHeight: '90vh', padding: '1.5rem', background: 'var(--bg-color)', borderRadius: '12px', display: 'flex', flexDirection: 'column' }}
+          >
+            <div className="sheet-header">
+              <h2>Reference Photo</h2>
+              <button className="close-btn" onClick={() => setPreviewPhoto(null)}>✕</button>
+            </div>
+            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', justifyContent: 'center', margin: '1rem 0' }}>
+              <img
+                src={previewPhoto}
+                alt="Reference"
+                style={{ maxWidth: '100%', maxHeight: '60vh', objectFit: 'contain', borderRadius: '8px' }}
+              />
+            </div>
+            <a
+              href={previewPhoto}
+              target="_blank"
+              rel="noopener noreferrer"
+              download
+              className="btn btn-primary"
+              style={{ textAlign: 'center', textDecoration: 'none' }}
+            >
+              📥 Download / View Full Image
+            </a>
+          </div>
+        </div>
       )}
     </>
   )

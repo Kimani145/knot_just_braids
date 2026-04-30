@@ -26,6 +26,8 @@ function BookingSheet({ isOpen, styleName, styleImageUrl, onClose }) {
   const [hasAgreedToPolicy, setHasAgreedToPolicy] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [referencePhotos, setReferencePhotos] = useState([])
+  const [photoPreviews, setPhotoPreviews] = useState([])
 
   const minDate = useMemo(() => {
     return new Date().toISOString().split('T')[0]
@@ -39,6 +41,13 @@ function BookingSheet({ isOpen, styleName, styleImageUrl, onClose }) {
     setHasAgreedToPolicy(false)
     setSubmitError('')
     setIsSubmitting(false)
+    photoPreviews.forEach((preview) => {
+      if (preview.startsWith('blob:')) {
+        URL.revokeObjectURL(preview)
+      }
+    })
+    setReferencePhotos([])
+    setPhotoPreviews([])
   }
 
   const handleCloseSheet = () => {
@@ -48,6 +57,47 @@ function BookingSheet({ isOpen, styleName, styleImageUrl, onClose }) {
 
   const handleChange = (field) => (event) => {
     setForm((prev) => ({ ...prev, [field]: event.target.value }))
+  }
+
+  const handlePhotoChange = (event) => {
+    const files = Array.from(event.target.files || [])
+    if (!files.length) return
+
+    setSubmitError('')
+
+    const validFiles = []
+    const newPreviews = []
+
+    if (referencePhotos.length + files.length > 2) {
+      setSubmitError('Maximum of 2 photos allowed. For more photos or videos, please contact us via social media.')
+      return
+    }
+
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) {
+        setSubmitError('Only image files are allowed.')
+        return
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        setSubmitError('File size must be under 5MB per photo.')
+        return
+      }
+      validFiles.push(file)
+      newPreviews.push(URL.createObjectURL(file))
+    }
+
+    setReferencePhotos((prev) => [...prev, ...validFiles])
+    setPhotoPreviews((prev) => [...prev, ...newPreviews])
+    
+    event.target.value = ''
+  }
+
+  const removePhoto = (index) => {
+    if (photoPreviews[index] && photoPreviews[index].startsWith('blob:')) {
+      URL.revokeObjectURL(photoPreviews[index])
+    }
+    setReferencePhotos((prev) => prev.filter((_, i) => i !== index))
+    setPhotoPreviews((prev) => prev.filter((_, i) => i !== index))
   }
 
   const submitBooking = async () => {
@@ -65,6 +115,42 @@ function BookingSheet({ isOpen, styleName, styleImageUrl, onClose }) {
       hasEmail: Boolean(trimmedEmail),
       hasPhone: Boolean(trimmedPhone),
     })
+    
+    let referencePhotoUrls = [];
+    if (referencePhotos.length > 0) {
+      console.info('[BookingSheet] Uploading reference photos...');
+      try {
+        const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+        const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+        
+        if (CLOUDINARY_CLOUD_NAME && CLOUDINARY_UPLOAD_PRESET) {
+          const uploadPromises = referencePhotos.map(async (photo) => {
+            const formData = new FormData();
+            formData.append('file', photo);
+            formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+            
+            const uploadRes = await fetch(
+              `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+              { method: 'POST', body: formData }
+            );
+            
+            if (uploadRes.ok) {
+              const data = await uploadRes.json();
+              return data.secure_url;
+            } else {
+              console.error('[BookingSheet] Failed to upload a reference photo', await uploadRes.text());
+              return null;
+            }
+          });
+
+          const results = await Promise.all(uploadPromises);
+          referencePhotoUrls = results.filter(url => url !== null);
+          console.info(`[BookingSheet] ${referencePhotoUrls.length} reference photo(s) uploaded successfully`);
+        }
+      } catch (err) {
+        console.error('[BookingSheet] Error uploading reference photos', err);
+      }
+    }
 
     const bookingRef = await addDoc(collection(db, BOOKINGS_COLLECTION), {
       clientName,
@@ -80,6 +166,7 @@ function BookingSheet({ isOpen, styleName, styleImageUrl, onClose }) {
       time: form.time,
       length: form.length,
       notes: form.notes.trim(),
+      referencePhotoUrls,
       status: 'pending',
       agreedToPolicy: true,
       createdAt: serverTimestamp(),
@@ -286,8 +373,49 @@ function BookingSheet({ isOpen, styleName, styleImageUrl, onClose }) {
                 <textarea
                   value={form.notes}
                   onChange={handleChange('notes')}
-                  placeholder="Reference photos, special requests..."
+                  placeholder="Special requests, hair condition, etc..."
                 />
+              </div>
+              <div className="fg">
+                <label>Reference Photos (Optional, max 2, up to 5MB each)</label>
+                <div style={{ fontSize: '0.85rem', marginBottom: '8px', color: '#666' }}>
+                  For more photos or videos, please share them with us via our social media channels.
+                </div>
+                {photoPreviews.length > 0 && (
+                  <div style={{ display: 'flex', gap: '10px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                    {photoPreviews.map((preview, index) => (
+                      <div key={index} style={{ position: 'relative', width: '80px', height: '80px' }}>
+                        <img 
+                          src={preview} 
+                          alt={`Reference preview ${index + 1}`} 
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '4px' }} 
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removePhoto(index)}
+                          style={{
+                            position: 'absolute', top: '-5px', right: '-5px',
+                            background: '#ff4d4f', color: 'white', border: 'none',
+                            borderRadius: '50%', width: '20px', height: '20px',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            cursor: 'pointer', fontSize: '12px'
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {referencePhotos.length < 2 && (
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handlePhotoChange}
+                    style={{ background: '#f9f9f9', padding: '8px', borderRadius: '4px', width: '100%' }}
+                  />
+                )}
               </div>
               <div className="note">
                 📧 You'll receive an automated email on submission, and a final

@@ -39,7 +39,7 @@ function ClientView({
           target="_blank"
           rel="noopener noreferrer"
         >
-          📸
+           <img src="/instagram-logo-facebook-2-svgrepo-com.svg" alt="Instagram" width="24" height="24" />
         </a>
         <a
           className="s-icon s-snap"
@@ -48,7 +48,7 @@ function ClientView({
           target="_blank"
           rel="noopener noreferrer"
         >
-          👻
+          <img src="/snapchat-svgrepo-com.svg" alt="Snapchat" width="24" height="24" />
         </a>
         <a
           className="s-icon s-tt"
@@ -57,7 +57,7 @@ function ClientView({
           target="_blank"
           rel="noopener noreferrer"
         >
-          🎵
+          <img src="/tiktok-svgrepo-com (2).svg" alt="TikTok" width="24" height="24" />
         </a>
         <a
           className="s-icon s-wa"
@@ -66,7 +66,7 @@ function ClientView({
           target="_blank"
           rel="noopener noreferrer"
         >
-          💬
+          <img src="/whatsapp-svgrepo-com.svg" alt="WhatsApp" width="24" height="24" />
         </a>
       </div>
 

@@ -44,7 +44,7 @@ function HeroStrip({ activeFeed, onPrimaryAction }) {
           target="_blank"
           rel="noreferrer"
         >
-          💬 WhatsApp
+        <img src="/whatsapp-svgrepo-com.svg" alt="WhatsApp" width="24" height="24" />  WhatsApp
         </a>
       </div>
     </div>

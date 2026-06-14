@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Joyride, STATUS } from 'react-joyride'
 import {
   addDoc,
   collection,
@@ -206,6 +207,80 @@ function InventoryQuickEditModal({
   )
 }
 
+const tourSteps = [
+  // --- TOP NAVIGATION ---
+  {
+    target: '.tour-walkthrough-btn',
+    content: 'You can restart this tutorial at any time by clicking here.',
+    placement: 'bottom',
+    disableBeacon: true,
+  },
+  {
+    target: '.tour-theme-btn',
+    content: 'Switch between light and dark mode depending on your environment.',
+    placement: 'bottom',
+  },
+  {
+    target: '.tour-security-btn',
+    content: 'Click here to update your admin password. Keep this secure!',
+    placement: 'bottom',
+  },
+  {
+    target: '.tour-dashboard-btn',
+    content: 'Switch to the main dashboard view to manage active salon bookings and orders.',
+    placement: 'bottom',
+  },
+  {
+    target: '.tour-history-btn',
+    content: 'Need to find an old receipt? Click here to view your immutable history of completed bookings and orders.',
+    placement: 'bottom',
+  },
+  {
+    target: '.tour-gallery-btn',
+    content: 'Need to see all uploaded photos? This opens your full Asset Gallery.',
+    placement: 'bottom',
+  },
+  {
+    target: '.tour-exit-btn',
+    content: 'When you are done, click here to safely log out and return to the public site.',
+    placement: 'left',
+  },
+
+  // --- ADDING INVENTORY ---
+  {
+    target: '.tour-add-hair-form',
+    content: 'To add a new salon service, fill out the Style Name, Duration, and Price here. Upload an image, and click "Add Hair Style" to push it live.',
+    placement: 'right',
+  },
+  {
+    target: '.tour-add-bead-form',
+    content: 'For the physical shop, enter the Product Name, Price, and current Stock Qty. If stock hits 0, the site will automatically mark it as "Out of Stock".',
+    placement: 'left',
+  },
+
+  // --- PROCESSING REQUESTS ---
+  {
+    target: '.tour-appointments-panel',
+    content: 'This panel shows clients waiting for a salon confirmation.',
+    placement: 'top',
+  },
+  {
+    target: '.tour-appointments-actions',
+    content: 'Use "Confirm" to lock in the appointment, "Decline" to cancel it, or "Remind" to send them a quick WhatsApp/Email message.',
+    placement: 'bottom',
+  },
+  {
+    target: '.tour-orders-panel',
+    content: 'This panel tracks physical beadwork orders that have been paid for.',
+    placement: 'top',
+  },
+  {
+    target: '.tour-orders-actions',
+    content: 'Once you have packaged the beads and handed them to the rider, click "Mark Fulfilled" to archive the order and send a final receipt to the client.',
+    placement: 'bottom',
+  }
+]
+
 function AdminView({
   theme,
   onToggleTheme,
@@ -223,6 +298,25 @@ function AdminView({
   orders,
 }) {
   const [salonForm, setSalonForm] = useState(initialSalonForm)
+  const [runTour, setRunTour] = useState(false)
+  const [tourKey, setTourKey] = useState(0)
+
+  const handleJoyrideCallback = (data) => {
+    const { status } = data
+    const finishedStatuses = [STATUS.FINISHED, STATUS.SKIPPED]
+    if (finishedStatuses.includes(status)) {
+      setRunTour(false)
+    }
+  }
+
+  const startTour = () => {
+    setViewMode('dashboard')
+    setAdminMode('dashboard')
+    setTourKey((prev) => prev + 1)
+    setTimeout(() => {
+      setRunTour(true)
+    }, 100)
+  }
   const [beadForm, setBeadForm] = useState(initialBeadForm)
   const [salonUploadReset, setSalonUploadReset] = useState(0)
   const [beadUploadReset, setBeadUploadReset] = useState(0)
@@ -684,29 +778,68 @@ function AdminView({
 
   return (
     <>
+      <Joyride
+        key={tourKey}
+        callback={handleJoyrideCallback}
+        continuous={true}
+        run={runTour}
+        scrollToFirstStep={true}
+        showProgress={true}
+        showSkipButton={true}
+        steps={tourSteps}
+        styles={{
+          options: {
+            arrowColor: '#f8faf8',
+            backgroundColor: '#f8faf8',
+            overlayColor: 'rgba(0, 0, 0, 0.7)',
+            primaryColor: '#2e5a2c', // Your deep brand green
+            textColor: '#1a2b1a', // Your dark text color
+            zIndex: 1000,
+          },
+          tooltipContainer: {
+            textAlign: 'left',
+          },
+          buttonNext: {
+            backgroundColor: '#2e5a2c',
+            borderRadius: '6px',
+            color: '#ffffff',
+          },
+          buttonBack: {
+            color: '#557a46',
+            marginRight: '10px',
+          },
+          buttonSkip: {
+            color: '#1a2b1a',
+            fontWeight: '600',
+          }
+        }}
+      />
       <div className="admin-nav">
         <div className="admin-logo">Knot Just — Command Center</div>
         <div className="admin-nav-right">
-          <button className="a-btn" onClick={onToggleTheme}>
+          <button className="a-btn tour-theme-btn" onClick={onToggleTheme}>
             {theme === 'dark' ? '☀️' : '🌙'} Theme
           </button>
-          <button className="a-btn" onClick={() => setIsSecurityOpen(true)}>
+          <button className="a-btn tour-security-btn" onClick={() => setIsSecurityOpen(true)}>
             🔐 Security
           </button>
-          <button className="a-btn" onClick={() => handleToggleViewMode('dashboard')} style={{
+          <button className="a-btn tour-walkthrough-btn" onClick={startTour}>
+            ℹ️ Walkthrough
+          </button>
+          <button className="a-btn tour-dashboard-btn" onClick={() => handleToggleViewMode('dashboard')} style={{
             opacity: viewMode === 'dashboard' ? 1 : 0.6,
           }}>
             📊 Dashboard
           </button>
-          <button className="a-btn" onClick={() => handleToggleViewMode('history')} style={{
+          <button className="a-btn tour-history-btn" onClick={() => handleToggleViewMode('history')} style={{
             opacity: viewMode === 'history' ? 1 : 0.6,
           }}>
             🗄️ History
           </button>
-          <button className="a-btn" onClick={handleToggleMode}>
+          <button className="a-btn tour-gallery-btn" onClick={handleToggleMode}>
             {isGallery ? '← Dashboard' : '🖼️ Asset Gallery'}
           </button>
-          <button className="a-btn danger" onClick={onSignOut}>
+          <button className="a-btn danger tour-exit-btn" onClick={onSignOut}>
             ← Exit Admin
           </button>
         </div>
@@ -795,7 +928,7 @@ function AdminView({
               panelId="admin-salon-panel"
             >
               <form
-                className="admin-form"
+                className="admin-form tour-add-hair-form"
                 style={{ marginBottom: '1rem' }}
                 onSubmit={handleAddSalon}
               >
@@ -943,7 +1076,7 @@ function AdminView({
               ) : null}
 
               <form
-                className="admin-form"
+                className="admin-form tour-add-bead-form"
                 style={{ marginBottom: '1rem' }}
                 onSubmit={handleAddBead}
               >
@@ -1073,8 +1206,9 @@ function AdminView({
               title="Appointment Requests"
               tagLabel="BOOKINGS"
               tagClass="tag-bookings"
+              className="tour-appointments-panel"
             >
-              <div id="adminBookings">
+              <div id="adminBookings" className="tour-appointments-actions">
                 {loadingBookings ? (
                   renderSkeletonRows(3, 'bookings')
                 ) : pendingBookings.length ? (
@@ -1156,8 +1290,9 @@ function AdminView({
               title="Order Fulfillment"
               tagLabel="ORDERS"
               tagClass="tag-orders"
+              className="tour-orders-panel"
             >
-              <div id="adminOrders">
+              <div id="adminOrders" className="tour-orders-actions">
                 {loadingOrders ? (
                   renderSkeletonRows(3, 'orders')
                 ) : pendingOrders.length ? (

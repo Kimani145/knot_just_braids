@@ -1,4 +1,11 @@
-function Footer() {
+function Footer({ onNavigate }) {
+  const handleClick = (path, view) => (e) => {
+    if (onNavigate) {
+      e.preventDefault()
+      onNavigate(path, view)
+    }
+  }
+
   return (
     <footer>
       <span className="logo">
@@ -20,6 +27,15 @@ function Footer() {
         </a>
         <a href="#" target="_blank" rel="noopener noreferrer">
           <img src="/snapchat-svgrepo-com.svg" alt="Snapchat" width="24" height="24" />
+        </a>
+      </div>
+      <div className="footer-links">
+        <a href="/privacy" onClick={handleClick('/privacy', 'privacy')} className="footer-link">
+          Privacy Policy
+        </a>
+        <span style={{ color: 'var(--border)' }}>•</span>
+        <a href="/terms" onClick={handleClick('/terms', 'terms')} className="footer-link">
+          Terms of Service
         </a>
       </div>
     </footer>

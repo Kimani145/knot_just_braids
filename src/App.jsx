@@ -7,6 +7,8 @@ import Navigation from './components/layout/Navigation'
 import FeedToggle from './components/layout/FeedToggle'
 import Footer from './components/layout/Footer'
 import ClientView from './components/client/ClientView'
+import PrivacyPolicy from './components/client/PrivacyPolicy'
+import TermsOfService from './components/client/TermsOfService'
 import BookingSheet from './components/modals/BookingSheet'
 import CartSheet from './components/modals/CartSheet'
 import CheckoutSheet from './components/modals/CheckoutSheet'
@@ -24,7 +26,11 @@ import {
 
 const getViewFromPath = () => {
   if (typeof window === 'undefined') return 'client'
-  return window.location.pathname === '/admin' ? 'admin' : 'client'
+  const path = window.location.pathname
+  if (path === '/admin') return 'admin'
+  if (path === '/privacy') return 'privacy'
+  if (path === '/terms') return 'terms'
+  return 'client'
 }
 
 const getInitialTheme = () => {
@@ -287,7 +293,19 @@ function App() {
   }
 
   const handleLogoClick = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    if (['privacy', 'terms'].includes(currentView)) {
+      window.history.pushState ? window.history.pushState({}, '', '/') : null
+      setCurrentView('client')
+      window.scrollTo({ top: 0 })
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+  }
+
+  const handleNavigate = (path, view) => {
+    window.history.pushState({}, '', path)
+    setCurrentView(view)
+    window.scrollTo({ top: 0 })
   }
 
   const leaveAdminRoute = () => {
@@ -354,7 +372,7 @@ function App() {
       <SpeedInsights />
       <div
         id="view-client"
-        className={`view${currentView === 'client' ? ' active' : ''}`}
+        className={`view${['client', 'privacy', 'terms'].includes(currentView) ? ' active' : ''}`}
       >
         <AnnouncementBar />
         <Navigation
@@ -364,17 +382,25 @@ function App() {
           onOpenCart={handleOpenCart}
           onLogoClick={handleLogoClick}
         />
-        <FeedToggle activeFeed={activeFeed} onChange={setActiveFeed} />
-        <ClientView
-          activeFeed={activeFeed}
-          salonStyles={salonStyles}
-          beadProducts={beadProducts}
-          loadingSalon={loadingSalon}
-          loadingBeads={loadingBeads}
-          onBook={handleBookStyle}
-          onAddToCart={handleAddToCart}
-        />
-        <Footer />
+        {currentView === 'client' ? (
+          <>
+            <FeedToggle activeFeed={activeFeed} onChange={setActiveFeed} />
+            <ClientView
+              activeFeed={activeFeed}
+              salonStyles={salonStyles}
+              beadProducts={beadProducts}
+              loadingSalon={loadingSalon}
+              loadingBeads={loadingBeads}
+              onBook={handleBookStyle}
+              onAddToCart={handleAddToCart}
+            />
+          </>
+        ) : currentView === 'privacy' ? (
+          <PrivacyPolicy />
+        ) : currentView === 'terms' ? (
+          <TermsOfService />
+        ) : null}
+        <Footer onNavigate={handleNavigate} />
       </div>
 
       <div

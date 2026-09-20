@@ -9,6 +9,7 @@ import {
 } from '../../utils/clientDetailsStorage'
 import { sendDynamicEmail } from '../../utils/emailService'
 import { generateBookingHTML } from '../../utils/emailTemplates'
+import { toast } from 'sonner'
 
 const createInitialForm = () => ({
   ...getStoredClientDetails(),
@@ -28,6 +29,12 @@ function BookingSheet({ isOpen, styleName, styleImageUrl, onClose }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [referencePhotos, setReferencePhotos] = useState([])
   const [photoPreviews, setPhotoPreviews] = useState([])
+  const [fieldErrors, setFieldErrors] = useState({
+    firstName: '',
+    email: '',
+    date: '',
+    time: '',
+  })
 
   const minDate = useMemo(() => {
     return new Date().toISOString().split('T')[0]
@@ -41,6 +48,7 @@ function BookingSheet({ isOpen, styleName, styleImageUrl, onClose }) {
     setHasAgreedToPolicy(false)
     setSubmitError('')
     setIsSubmitting(false)
+    setFieldErrors({ firstName: '', email: '', date: '', time: '' })
     photoPreviews.forEach((preview) => {
       if (preview.startsWith('blob:')) {
         URL.revokeObjectURL(preview)
@@ -57,6 +65,9 @@ function BookingSheet({ isOpen, styleName, styleImageUrl, onClose }) {
 
   const handleChange = (field) => (event) => {
     setForm((prev) => ({ ...prev, [field]: event.target.value }))
+    if (fieldErrors[field]) {
+      setFieldErrors((prev) => ({ ...prev, [field]: '' }))
+    }
   }
 
   const handlePhotoChange = (event) => {
@@ -217,19 +228,19 @@ function BookingSheet({ isOpen, styleName, styleImageUrl, onClose }) {
 
   const handleSubmit = async (event) => {
     event.preventDefault()
-    if (
-      !form.firstName.trim() ||
-      !form.email.trim() ||
-      !styleName ||
-      !form.date ||
-      !form.time
-    ) {
-      window.alert('Please fill in your name, email, style, date, and time.')
+    const nextFieldErrors = {
+      firstName: form.firstName.trim() ? '' : 'First name is required.',
+      email: form.email.trim() ? '' : 'Email is required.',
+      date: form.date ? '' : 'Date is required.',
+      time: form.time ? '' : 'Time is required.',
+    }
+    setFieldErrors(nextFieldErrors)
+    if (!styleName || Object.values(nextFieldErrors).some(Boolean)) {
       return
     }
 
     if (!hasAgreedToPolicy) {
-      window.alert('Please agree to the Booking & Shop Policies before submitting.')
+      toast.error('Please agree to the Booking & Shop Policies before submitting.')
       return
     }
 
@@ -295,6 +306,7 @@ function BookingSheet({ isOpen, styleName, styleImageUrl, onClose }) {
                     onChange={handleChange('firstName')}
                     placeholder="Amara"
                   />
+                  {fieldErrors.firstName ? <span className="a-error">{fieldErrors.firstName}</span> : null}
                 </div>
                 <div className="fg">
                   <label>Last Name</label>
@@ -314,6 +326,7 @@ function BookingSheet({ isOpen, styleName, styleImageUrl, onClose }) {
                   onChange={handleChange('email')}
                   placeholder="amara@email.com"
                 />
+                {fieldErrors.email ? <span className="a-error">{fieldErrors.email}</span> : null}
               </div>
               <div className="fg">
                 <label>Phone / WhatsApp</label>
@@ -342,6 +355,7 @@ function BookingSheet({ isOpen, styleName, styleImageUrl, onClose }) {
                     min={minDate}
                     onChange={handleChange('date')}
                   />
+                  {fieldErrors.date ? <span className="a-error">{fieldErrors.date}</span> : null}
                 </div>
                 <div className="fg">
                   <label>Preferred Time</label>
@@ -357,6 +371,7 @@ function BookingSheet({ isOpen, styleName, styleImageUrl, onClose }) {
                     <option>15:00</option>
                     <option>16:00</option>
                   </select>
+                  {fieldErrors.time ? <span className="a-error">{fieldErrors.time}</span> : null}
                 </div>
               </div>
               <div className="fg">

@@ -42,12 +42,15 @@ const initialSalonForm = {
 
 const initialBeadForm = {
   name: '',
+  pricingType: 'fixed',
   price: '',
+  priceMax: '',
   priceDisplay: '',
+  priceMaxDisplay: '',
   stock: '',
   emoji: '',
   desc: '',
-  image: null,
+  images: [],
 }
 
 const initialInventoryEditForm = {
@@ -318,6 +321,12 @@ function AdminView({
     }, 100)
   }
   const [beadForm, setBeadForm] = useState(initialBeadForm)
+  const [beadFormErrors, setBeadFormErrors] = useState({
+    name: '',
+    price: '',
+    priceMax: '',
+    desc: '',
+  })
   const [salonUploadReset, setSalonUploadReset] = useState(0)
   const [beadUploadReset, setBeadUploadReset] = useState(0)
   const [isSecurityOpen, setIsSecurityOpen] = useState(false)
@@ -476,17 +485,65 @@ function AdminView({
 
   const handleBeadChange = (field) => (event) => {
     const { value } = event.target
-    if (field === 'price') {
+    if (field === 'price' || field === 'priceMax') {
       const normalized = normalizePriceInput(value)
       setBeadForm((prev) => ({
         ...prev,
-        price: normalized.raw,
-        priceDisplay: normalized.display,
+        [field]: normalized.raw,
+        [field === 'price' ? 'priceDisplay' : 'priceMaxDisplay']: normalized.display,
       }))
+      setBeadFormErrors((prev) => ({ ...prev, [field]: '' }))
       return
     }
 
+    if (field === 'pricingType') {
+      setBeadForm((prev) => ({
+        ...prev,
+        pricingType: value === 'range' ? 'range' : 'fixed',
+        priceMax:
+          value === 'range' ? prev.priceMax : '',
+        priceMaxDisplay:
+          value === 'range' ? prev.priceMaxDisplay : '',
+      }))
+      setBeadFormErrors((prev) => ({ ...prev, price: '', priceMax: '' }))
+      return
+    }
+
+    if (field === 'name' || field === 'desc') {
+      setBeadFormErrors((prev) => ({ ...prev, [field]: '' }))
+    }
     setBeadForm((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const validateBeadField = (field, formState = beadForm) => {
+    const pricingType = formState.pricingType === 'range' ? 'range' : 'fixed'
+    const priceValue = Number(formState.price)
+    const priceMaxValue = Number(formState.priceMax)
+
+    if (field === 'name' && !formState.name.trim()) {
+      return 'Product name is required.'
+    }
+    if (field === 'desc' && !formState.desc.trim()) {
+      return 'Description is required.'
+    }
+    if (field === 'price') {
+      if (!priceValue || priceValue <= 0) return 'Enter a valid minimum price.'
+      if (pricingType === 'range' && priceMaxValue <= priceValue) {
+        return 'Minimum price must be lower than maximum price.'
+      }
+    }
+    if (field === 'priceMax' && pricingType === 'range') {
+      if (!priceMaxValue || priceMaxValue <= 0) return 'Enter a valid maximum price.'
+      if (priceMaxValue <= priceValue) return 'Maximum price must be greater than minimum price.'
+    }
+    return ''
+  }
+
+  const handleBeadFieldBlur = (field) => () => {
+    setBeadFormErrors((prev) => ({
+      ...prev,
+      [field]: validateBeadField(field),
+    }))
   }
 
   const handleInventoryEditChange = (field) => (event) => {
@@ -510,11 +567,14 @@ function AdminView({
       return
     }
 
-    setBeadForm((prev) => ({ ...prev, image: asset || null }))
+    setBeadForm((prev) => ({
+      ...prev,
+      images: Array.isArray(asset) ? asset : asset ? [asset] : [],
+    }))
   }
 
   const getItemAssetUrl = (item) =>
-    item.assetUrl || item.image?.assetUrl || item.image?.previewUrl || ''
+    item.images?.[0] || item.assetUrl || item.image?.assetUrl || item.image?.previewUrl || ''
 
   const renderSkeletonRows = (count = 4, prefix = 'admin') =>
     Array.from({ length: count }, (_, index) => (
@@ -543,7 +603,7 @@ function AdminView({
         ...prev,
         name: defaultName,
         desc: defaultDescription,
-        image: republishedAsset,
+        images: [republishedAsset],
         emoji: prev.emoji || '📿',
       }))
       pushDashboardFeedback('success', 'Asset loaded into the Knot Just Beads form.')
@@ -557,7 +617,7 @@ function AdminView({
       return
     }
 
-    setBeadForm((prev) => ({ ...prev, image: null }))
+    setBeadForm((prev) => ({ ...prev, images: [] }))
   }
 
   const openInventoryEdit = (type, item) => {
@@ -673,28 +733,42 @@ function AdminView({
 
   const handleAddBead = async (event) => {
     event.preventDefault()
-    if (!beadForm.name.trim() || !beadForm.price || !beadForm.desc.trim()) {
-      pushDashboardFeedback('error', 'Please fill in the name, price, and description.')
+    const nextErrors = {
+      name: validateBeadField('name'),
+      price: validateBeadField('price'),
+      priceMax: validateBeadField('priceMax'),
+      desc: validateBeadField('desc'),
+    }
+    setBeadFormErrors(nextErrors)
+    if (Object.values(nextErrors).some(Boolean)) {
+      pushDashboardFeedback('error', 'Fix the highlighted bead product fields and try again.')
       return
     }
 
+    const pricingType = beadForm.pricingType === 'range' ? 'range' : 'fixed'
     const priceValue = Number(beadForm.price)
-    if (!priceValue || priceValue <= 0) {
-      pushDashboardFeedback('error', 'Please enter a valid price.')
-      return
-    }
-
+    const priceMaxValue = pricingType === 'range' ? Number(beadForm.priceMax) : null
     const bg = BEAD_BACKGROUNDS[beadProducts.length % BEAD_BACKGROUNDS.length]
     const stock = Math.max(0, Number.parseInt(beadForm.stock, 10) || 0)
-    const assetUrl = beadForm.image?.assetUrl || ''
+    const images = (Array.isArray(beadForm.images) ? beadForm.images : [])
+      .map((asset) => asset?.assetUrl || asset?.previewUrl || '')
+      .filter(Boolean)
+    const assetUrl = images[0] ?? ''
     const emoji = beadForm.emoji.trim() || '📿'
 
     try {
       await addDoc(collection(db, BEAD_PRODUCTS_COLLECTION), {
         name: beadForm.name.trim(),
+        pricingType,
         price: priceValue,
+        priceMax: pricingType === 'range' ? priceMaxValue : null,
+        priceDisplay:
+          pricingType === 'range'
+            ? `${formatCurrency(priceValue)} – ${formatCurrency(priceMaxValue)}`
+            : formatCurrency(priceValue),
         stock,
         description: beadForm.desc.trim() || 'New product',
+        images,
         assetUrl,
         emoji,
         bg,
@@ -702,6 +776,12 @@ function AdminView({
       })
 
       setBeadForm(initialBeadForm)
+      setBeadFormErrors({
+        name: '',
+        price: '',
+        priceMax: '',
+        desc: '',
+      })
       setBeadUploadReset((value) => value + 1)
       pushDashboardFeedback('success', 'Bead product published successfully.')
     } catch (error) {
@@ -1080,64 +1160,121 @@ function AdminView({
                 style={{ marginBottom: '1rem' }}
                 onSubmit={handleAddBead}
               >
-                <div className="a-fg">
-                  <label className="a-label">Product Name</label>
-                  <input
-                    className="a-input"
-                    placeholder="Waist Beads"
-                    value={beadForm.name}
-                    onChange={handleBeadChange('name')}
-                  />
-                </div>
-                <div className="a-fg">
-                  <label className="a-label">Price</label>
-                  <input
-                    className="a-input"
-                    placeholder="Kshs 25"
-                    value={beadForm.priceDisplay}
-                    onChange={handleBeadChange('price')}
-                  />
-                </div>
-                <div className="a-fg">
-                  <label className="a-label">Stock Qty</label>
-                  <input
-                    className="a-input"
-                    placeholder="10"
-                    type="number"
-                    value={beadForm.stock}
-                    onChange={handleBeadChange('stock')}
-                  />
-                </div>
-                <div className="a-fg">
-                  <label className="a-label">Product Image</label>
-                  <ImageUploader
-                    onUpload={(asset) => handleAssetUpload(asset, 'beads')}
-                    resetSignal={beadUploadReset}
-                    selectedAsset={beadForm.image}
-                  />
-                </div>
-                <div className="a-fg">
-                  <label className="a-label">Emoji (Fallback)</label>
-                  <input
-                    className="a-input"
-                    placeholder="📿"
-                    maxLength={2}
-                    value={beadForm.emoji}
-                    onChange={handleBeadChange('emoji')}
-                  />
-                </div>
-                <div className="a-fg full">
-                  <label className="a-label">Description</label>
-                  <input
-                    className="a-input"
-                    placeholder="Short product description"
-                    value={beadForm.desc}
-                    onChange={handleBeadChange('desc')}
-                  />
-                </div>
-                {beadForm.image?.source === 'gallery' ? (
+                <div className="a-group full">
+                  <h4 className="a-group-title">Basics</h4>
+                  <div className="a-fg">
+                    <label className="a-label">Product Name</label>
+                    <input
+                      className={beadFormErrors.name ? 'a-input invalid' : 'a-input'}
+                      placeholder="Waist Beads"
+                      value={beadForm.name}
+                      onChange={handleBeadChange('name')}
+                      onBlur={handleBeadFieldBlur('name')}
+                    />
+                    {beadFormErrors.name ? (
+                      <span className="a-error">{beadFormErrors.name}</span>
+                    ) : null}
+                  </div>
                   <div className="a-fg full">
-                    {renderGallerySelection('beads', beadForm.image)}
+                    <label className="a-label">Description</label>
+                    <input
+                      className={beadFormErrors.desc ? 'a-input invalid' : 'a-input'}
+                      placeholder="Short product description"
+                      value={beadForm.desc}
+                      onChange={handleBeadChange('desc')}
+                      onBlur={handleBeadFieldBlur('desc')}
+                    />
+                    {beadFormErrors.desc ? (
+                      <span className="a-error">{beadFormErrors.desc}</span>
+                    ) : null}
+                  </div>
+                  <div className="a-fg">
+                    <label className="a-label">Emoji (Fallback)</label>
+                    <input
+                      className="a-input"
+                      placeholder="📿"
+                      maxLength={2}
+                      value={beadForm.emoji}
+                      onChange={handleBeadChange('emoji')}
+                    />
+                  </div>
+                </div>
+                <div className="a-group full">
+                  <h4 className="a-group-title">Media</h4>
+                  <div className="a-fg full">
+                    <label className="a-label">Product Images</label>
+                    <ImageUploader
+                      onUpload={(asset) => handleAssetUpload(asset, 'beads')}
+                      resetSignal={beadUploadReset}
+                      selectedAssets={beadForm.images}
+                      allowMultiple
+                    />
+                  </div>
+                </div>
+                <div className="a-group full">
+                  <h4 className="a-group-title">Pricing & Stock</h4>
+                  <div className="pricing-toggle">
+                    <button
+                      type="button"
+                      className={`pricing-toggle-btn${beadForm.pricingType === 'fixed' ? ' active' : ''}`}
+                      onClick={handleBeadChange('pricingType')}
+                      value="fixed"
+                    >
+                      Fixed price
+                    </button>
+                    <button
+                      type="button"
+                      className={`pricing-toggle-btn${beadForm.pricingType === 'range' ? ' active' : ''}`}
+                      onClick={handleBeadChange('pricingType')}
+                      value="range"
+                    >
+                      Price range
+                    </button>
+                  </div>
+                  <div className="a-fg">
+                    <label className="a-label">
+                      {beadForm.pricingType === 'range' ? 'Minimum Price' : 'Price'}
+                    </label>
+                    <input
+                      className={beadFormErrors.price ? 'a-input invalid' : 'a-input'}
+                      placeholder="Kshs 25"
+                      value={beadForm.priceDisplay}
+                      onChange={handleBeadChange('price')}
+                      onBlur={handleBeadFieldBlur('price')}
+                    />
+                    {beadFormErrors.price ? (
+                      <span className="a-error">{beadFormErrors.price}</span>
+                    ) : null}
+                  </div>
+                  {beadForm.pricingType === 'range' ? (
+                    <div className="a-fg">
+                      <label className="a-label">Maximum Price</label>
+                      <input
+                        className={beadFormErrors.priceMax ? 'a-input invalid' : 'a-input'}
+                        placeholder="Kshs 40"
+                        value={beadForm.priceMaxDisplay}
+                        onChange={handleBeadChange('priceMax')}
+                        onBlur={handleBeadFieldBlur('priceMax')}
+                      />
+                      {beadFormErrors.priceMax ? (
+                        <span className="a-error">{beadFormErrors.priceMax}</span>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <div className="a-fg">
+                    <label className="a-label">Stock Qty</label>
+                    <input
+                      className="a-input"
+                      placeholder="10"
+                      type="number"
+                      value={beadForm.stock}
+                      onChange={handleBeadChange('stock')}
+                    />
+                  </div>
+                </div>
+                {beadForm.images?.[0]?.source === 'gallery' ? (
+                  <div className="a-fg full">
+                    {renderGallerySelection('beads', beadForm.images[0])}
                   </div>
                 ) : null}
                 <div className="a-fg full">
@@ -1171,7 +1308,10 @@ function AdminView({
                       </span>
                       <span className="name">{item.name}</span>
                       <span className="sub">
-                        {formatCurrency(item.price)} ·{' '}
+                        {(item.pricingType === 'range'
+                          ? `${formatCurrency(item.price)} – ${formatCurrency(item.priceMax)}`
+                          : formatCurrency(item.price))}{' '}
+                        ·{' '}
                         {item.stock === 0 ? 'Out of stock' : `${item.stock} in stock`}
                       </span>
                       <div className="a-row-actions">

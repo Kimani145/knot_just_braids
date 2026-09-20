@@ -10,6 +10,7 @@ function ClientView({
   loadingBeads,
   onBook,
   onAddToCart,
+  onInquire,
 }) {
   const catalogRef = useRef(null)
   const isSalon = activeFeed === 'salon'
@@ -83,6 +84,7 @@ function ClientView({
           isLoading={isLoading}
           onBook={onBook}
           onAddToCart={onAddToCart}
+          onInquire={onInquire}
         />
       </div>
     </>

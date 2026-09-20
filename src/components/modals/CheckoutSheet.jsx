@@ -18,6 +18,7 @@ import {
 } from '../../utils/clientDetailsStorage'
 import { sendDynamicEmail } from '../../utils/emailService'
 import { generateOrderHTML } from '../../utils/emailTemplates'
+import { toast } from 'sonner'
 
 const createInitialForm = () => ({
   ...getStoredClientDetails(),
@@ -32,6 +33,11 @@ function CheckoutSheet({ isOpen, cart, onClose, onComplete }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isPolicyOpen, setIsPolicyOpen] = useState(false)
   const [hasAgreedToPolicy, setHasAgreedToPolicy] = useState(false)
+  const [fieldErrors, setFieldErrors] = useState({
+    firstName: '',
+    email: '',
+    address: '',
+  })
 
   const totals = useMemo(() => {
     const total = cart.reduce((sum, item) => {
@@ -48,6 +54,7 @@ function CheckoutSheet({ isOpen, cart, onClose, onComplete }) {
     setIsSubmitting(false)
     setIsPolicyOpen(false)
     setHasAgreedToPolicy(false)
+    setFieldErrors({ firstName: '', email: '', address: '' })
   }
 
   const handleCloseSheet = () => {
@@ -57,6 +64,9 @@ function CheckoutSheet({ isOpen, cart, onClose, onComplete }) {
 
   const handleChange = (field) => (event) => {
     setForm((prev) => ({ ...prev, [field]: event.target.value }))
+    if (fieldErrors[field]) {
+      setFieldErrors((prev) => ({ ...prev, [field]: '' }))
+    }
   }
 
   const getFriendlySubmitError = (error) => {
@@ -221,18 +231,29 @@ function CheckoutSheet({ isOpen, cart, onClose, onComplete }) {
 
   const handleSubmit = async (event) => {
     event.preventDefault()
-    if (!form.firstName.trim() || !form.email.trim() || !form.address.trim()) {
-      window.alert('Please fill in your name, email, and delivery address.')
+    const nextFieldErrors = {
+      firstName: form.firstName.trim() ? '' : 'First name is required.',
+      email: form.email.trim() ? '' : 'Email is required.',
+      address: form.address.trim() ? '' : 'Delivery address is required.',
+    }
+    setFieldErrors(nextFieldErrors)
+    if (Object.values(nextFieldErrors).some(Boolean)) {
+      return
+    }
+
+    const rangeItem = cart.find((item) => item.pricingType === 'range')
+    if (rangeItem) {
+      setSubmitError(`Remove ${rangeItem.name} — this product requires a custom quote.`)
       return
     }
 
     if (!cart.length) {
-      window.alert('Your cart is empty.')
+      toast.error('Your cart is empty.')
       return
     }
 
     if (!hasAgreedToPolicy) {
-      window.alert('Please agree to the Booking & Shop Policies before submitting.')
+      toast.error('Please agree to the Booking & Shop Policies before submitting.')
       return
     }
 
@@ -306,6 +327,7 @@ function CheckoutSheet({ isOpen, cart, onClose, onComplete }) {
                     onChange={handleChange('firstName')}
                     placeholder="Amara"
                   />
+                  {fieldErrors.firstName ? <span className="a-error">{fieldErrors.firstName}</span> : null}
                 </div>
                 <div className="fg">
                   <label>Last Name</label>
@@ -325,14 +347,16 @@ function CheckoutSheet({ isOpen, cart, onClose, onComplete }) {
                   onChange={handleChange('email')}
                   placeholder="amara@email.com"
                 />
+                {fieldErrors.email ? <span className="a-error">{fieldErrors.email}</span> : null}
               </div>
               <div className="fg">
-                <label>Delivery Address</label>
+              <label>Delivery Address</label>
                 <textarea
                   value={form.address}
                   onChange={handleChange('address')}
                   placeholder="Street, City, Province, Postal Code"
                 />
+                {fieldErrors.address ? <span className="a-error">{fieldErrors.address}</span> : null}
               </div>
               <div className="fg">
                 <label>Phone / WhatsApp</label>

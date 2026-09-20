@@ -1,3 +1,5 @@
+import { Moon, ShoppingCart, Sun } from 'lucide-react'
+
 function Navigation({
   theme,
   onToggleTheme,
@@ -5,7 +7,6 @@ function Navigation({
   onOpenCart,
   onLogoClick,
 }) {
-  const themeIcon = theme === 'dark' ? '☀️' : '🌙'
   const showCount = cartCount > 0
 
   return (
@@ -16,10 +17,10 @@ function Navigation({
         </div>
         <div className="nav-right">
           <button className="icon-btn" onClick={onToggleTheme} title="Toggle theme">
-            {themeIcon}
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
           <button className="icon-btn cart-btn" onClick={onOpenCart} title="Cart">
-            🛒
+            <ShoppingCart size={18} />
             <span className={`cart-count${showCount ? ' show' : ''}`}>
               {cartCount}
             </span>

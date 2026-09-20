@@ -1,14 +1,30 @@
+import { useState } from 'react'
+import { Ban, Clock3, Package } from 'lucide-react'
 import formatCurrency from '../../utils/formatCurrency'
+import ProductQuickView from './ProductQuickView'
 
-function StyleCard({ item, isSalon, onBook, onAddToCart }) {
-  const imageUrl = item.assetUrl || item.image?.assetUrl || item.image?.previewUrl
-  const isOutOfStock = !isSalon && item.stock !== undefined && item.stock <= 0
+function StyleCard({ item, isSalon, onBook, onAddToCart, onInquire }) {
+  const [isQuickViewOpen, setIsQuickViewOpen] = useState(false)
+  const pricingType = item.pricingType === 'range' ? 'range' : 'fixed'
+  const imageUrl = item.images?.[0] || item.assetUrl || item.image?.assetUrl || item.image?.previewUrl
+  const isRangeProduct = !isSalon && pricingType === 'range'
+  const isOutOfStock =
+    !isSalon && !isRangeProduct && item.stock !== undefined && item.stock <= 0
   const isLowStock =
-    !isSalon && item.stock !== undefined && item.stock > 0 && item.stock < 3
+    !isSalon && !isRangeProduct && item.stock !== undefined && item.stock > 0 && item.stock < 3
+  const showPrice =
+    pricingType === 'range'
+      ? `${formatCurrency(item.price)} – ${formatCurrency(item.priceMax)}`
+      : formatCurrency(item.price)
 
   const handleAction = () => {
     if (isSalon) {
       onBook?.(item)
+      return
+    }
+
+    if (isRangeProduct) {
+      onInquire?.(item)
       return
     }
 
@@ -17,7 +33,18 @@ function StyleCard({ item, isSalon, onBook, onAddToCart }) {
 
   return (
     <div className="card">
-      <div className={`card-thumb ${item.bg}`}>
+      <div
+        className={`card-thumb ${item.bg}`}
+        onClick={() => setIsQuickViewOpen(true)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            setIsQuickViewOpen(true)
+          }
+        }}
+      >
         {imageUrl ? (
           <img
             src={imageUrl}
@@ -38,13 +65,13 @@ function StyleCard({ item, isSalon, onBook, onAddToCart }) {
         <h3>{item.name}</h3>
         <p className="desc">{item.desc}</p>
         <div className="card-meta">
-          <span className="price">{formatCurrency(item.price)}</span>
+          <span className="price">{showPrice}</span>
           <span className="sub-info">
             {isSalon
-              ? `⏱ ${item.duration}`
+              ? <><Clock3 size={14} /> {item.duration}</>
               : isOutOfStock
-                ? '🚫 Out of stock'
-                : `📦 ${item.stock} left`}
+                ? <><Ban size={14} /> Out of stock</>
+                : <><Package size={14} /> {item.stock} left</>}
           </span>
         </div>
         <button
@@ -55,11 +82,22 @@ function StyleCard({ item, isSalon, onBook, onAddToCart }) {
         >
           {isSalon
             ? 'Book this style →'
-            : isOutOfStock
-              ? 'Out of Stock'
-              : 'Add to Cart +'}
+            : isRangeProduct
+              ? 'Inquire →'
+              : isOutOfStock
+                ? 'Out of Stock'
+                : 'Add to Cart +'}
         </button>
       </div>
+      <ProductQuickView
+        isOpen={isQuickViewOpen}
+        item={item}
+        isSalon={isSalon}
+        onClose={() => setIsQuickViewOpen(false)}
+        onBook={onBook}
+        onAddToCart={onAddToCart}
+        onInquire={onInquire}
+      />
     </div>
   )
 }

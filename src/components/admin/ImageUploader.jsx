@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore'
 import formatBytes from '../../utils/formatBytes'
 import { db } from '../../firebase'
@@ -15,37 +15,31 @@ const createId = () => {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
-function ImageUploader({ onUpload, resetSignal, selectedAsset = null }) {
+function ImageUploader({
+  onUpload,
+  resetSignal,
+  selectedAsset = null,
+  selectedAssets = [],
+  allowMultiple = false,
+}) {
   const inputRef = useRef(null)
-  const previewUrlRef = useRef('')
   const [isDragging, setIsDragging] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
-  const [previewUrl, setPreviewUrl] = useState('')
-  const [fileName, setFileName] = useState('')
-  const [uploadedAssetUrl, setUploadedAssetUrl] = useState('')
+  const [assets, setAssets] = useState([])
+
+  const normalizedSelectedAssets = useMemo(() => {
+    if (allowMultiple) return Array.isArray(selectedAssets) ? selectedAssets : []
+    return selectedAsset ? [selectedAsset] : []
+  }, [allowMultiple, selectedAsset, selectedAssets])
 
   useEffect(() => {
-    previewUrlRef.current = previewUrl
-  }, [previewUrl])
-
-  useEffect(() => {
-    return () => {
-      if (previewUrl && previewUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(previewUrl)
-      }
-    }
-  }, [previewUrl])
+    setAssets(normalizedSelectedAssets)
+  }, [normalizedSelectedAssets])
 
   useEffect(() => {
     if (resetSignal === undefined) return
-    const currentPreviewUrl = previewUrlRef.current
-    if (currentPreviewUrl && currentPreviewUrl.startsWith('blob:')) {
-      URL.revokeObjectURL(currentPreviewUrl)
-    }
-    setPreviewUrl('')
-    setFileName('')
-    setUploadedAssetUrl('')
+    setAssets([])
     setUploadError('')
     setIsDragging(false)
     setIsUploading(false)
@@ -53,32 +47,6 @@ function ImageUploader({ onUpload, resetSignal, selectedAsset = null }) {
       inputRef.current.value = ''
     }
   }, [resetSignal])
-
-  useEffect(() => {
-    if (!selectedAsset) return
-
-    const nextUrl = selectedAsset.assetUrl || selectedAsset.previewUrl || ''
-    if (!nextUrl) return
-
-    const currentPreviewUrl = previewUrlRef.current
-    if (
-      currentPreviewUrl &&
-      currentPreviewUrl.startsWith('blob:') &&
-      currentPreviewUrl !== nextUrl
-    ) {
-      URL.revokeObjectURL(currentPreviewUrl)
-    }
-
-    setPreviewUrl(nextUrl)
-    setFileName(selectedAsset.fileName || 'Selected asset')
-    setUploadedAssetUrl(nextUrl)
-    setUploadError('')
-    setIsUploading(false)
-
-    if (inputRef.current) {
-      inputRef.current.value = ''
-    }
-  }, [selectedAsset])
 
   const uploadToCloudinary = async (file) => {
     if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {
@@ -114,76 +82,77 @@ function ImageUploader({ onUpload, resetSignal, selectedAsset = null }) {
     }
   }
 
-  const handleFile = async (file) => {
-    if (!file || !file.type.startsWith('image/')) return
+  const emitUpload = (nextAssets) => {
+    if (allowMultiple) {
+      onUpload?.(nextAssets)
+      return
+    }
+    onUpload?.(nextAssets[0] || null)
+  }
 
-    if (previewUrl && previewUrl.startsWith('blob:')) {
-      URL.revokeObjectURL(previewUrl)
+  const uploadFile = async (file) => {
+    const formattedFileSize = formatBytes(file.size)
+    const cloudinaryResponse = await uploadToCloudinary(file)
+    const assetUrl = cloudinaryResponse.secure_url
+
+    if (!assetUrl) {
+      throw new Error('Cloudinary upload succeeded without returning a secure URL.')
     }
 
-    const localPreview = URL.createObjectURL(file)
-    setPreviewUrl(localPreview)
-    setFileName(file.name)
-    setUploadedAssetUrl('')
-    setUploadError('')
+    await addDoc(collection(db, ASSET_METADATA_COLLECTION), {
+      fileName: file.name,
+      fileSize: formattedFileSize,
+      mimeType: file.type,
+      assetUrl,
+      uploadedAt: serverTimestamp(),
+    })
+
+    return {
+      id: createId(),
+      fileName: file.name,
+      fileSize: formattedFileSize,
+      mimeType: file.type,
+      timestamp: new Date().toISOString(),
+      previewUrl: assetUrl,
+      assetUrl,
+    }
+  }
+
+  const handleFiles = async (fileList) => {
+    const files = Array.from(fileList || []).filter((file) =>
+      file?.type?.startsWith('image/'),
+    )
+    if (!files.length) return
+
     setIsUploading(true)
+    setUploadError('')
 
-    try {
-      const formattedFileSize = formatBytes(file.size)
-      const cloudinaryResponse = await uploadToCloudinary(file)
-      const assetUrl = cloudinaryResponse.secure_url
+    const uploads = allowMultiple ? files : files.slice(0, 1)
+    let nextAssets = allowMultiple ? [...assets] : []
 
-      if (!assetUrl) {
-        throw new Error('Cloudinary upload succeeded without returning a secure URL.')
-      }
-
-      setUploadedAssetUrl(assetUrl)
-
+    for (const file of uploads) {
       try {
-        const docRef = await addDoc(collection(db, ASSET_METADATA_COLLECTION), {
-          fileName: file.name,
-          fileSize: formattedFileSize,
-          mimeType: file.type,
-          assetUrl,
-          uploadedAt: serverTimestamp(),
-        })
-
-        console.log('Firestore Save Success:', docRef.id)
+        const uploadedAsset = await uploadFile(file)
+        nextAssets = [...nextAssets, uploadedAsset]
       } catch (error) {
-        console.error('Firestore Save Failed:', error)
-        setUploadError(
-          'Image uploaded to Cloudinary, but Firestore metadata failed to save.',
-        )
-        return
+        console.error('Image upload failed:', error)
+        setUploadError('Upload failed or timed out. Click to retry.')
       }
-
-      const asset = {
-        id: createId(),
-        fileName: file.name,
-        fileSize: formattedFileSize,
-        mimeType: file.type,
-        timestamp: new Date().toISOString(),
-        previewUrl: assetUrl,
-        assetUrl,
-      }
-
-      onUpload?.(asset)
-    } catch (error) {
-      console.error('Image upload failed:', error)
-      setUploadError('Upload failed or timed out. Click to retry.')
-    } finally {
-      setIsUploading(false)
     }
+
+    setAssets(nextAssets)
+    emitUpload(nextAssets)
+    setIsUploading(false)
   }
 
   const handleDrop = (event) => {
     event.preventDefault()
     setIsDragging(false)
-    handleFile(event.dataTransfer.files?.[0])
+    handleFiles(event.dataTransfer.files)
   }
 
   const handleBrowse = (event) => {
-    handleFile(event.target.files?.[0])
+    handleFiles(event.target.files)
   }
 
   const openFilePicker = () => {
@@ -191,19 +160,15 @@ function ImageUploader({ onUpload, resetSignal, selectedAsset = null }) {
     inputRef.current?.click()
   }
 
-  const handleRemoveImage = (event) => {
+  const handleRemoveImage = (event, index) => {
     event.stopPropagation()
-    if (previewUrl && previewUrl.startsWith('blob:')) {
-      URL.revokeObjectURL(previewUrl)
-    }
-    setPreviewUrl('')
-    setFileName('')
-    setUploadedAssetUrl('')
+    const nextAssets = assets.filter((_, itemIndex) => itemIndex !== index)
+    setAssets(nextAssets)
+    emitUpload(nextAssets)
     setUploadError('')
     if (inputRef.current) {
       inputRef.current.value = ''
     }
-    onUpload?.(null)
   }
 
   const boxStyle = {
@@ -241,6 +206,7 @@ function ImageUploader({ onUpload, resetSignal, selectedAsset = null }) {
         ref={inputRef}
         type="file"
         accept="image/*"
+        multiple={allowMultiple}
         onChange={handleBrowse}
         style={{ display: 'none' }}
         disabled={isUploading}
@@ -252,44 +218,28 @@ function ImageUploader({ onUpload, resetSignal, selectedAsset = null }) {
       ) : null}
       {isUploading ? (
         <div style={{ fontSize: '0.78rem' }}>Uploading...</div>
-      ) : previewUrl ? (
-        <div>
-          <img
-            src={previewUrl}
-            alt={fileName}
-            style={{
-              width: '100%',
-              height: '120px',
-              objectFit: 'cover',
-              borderRadius: '0.5rem',
-              marginBottom: '0.5rem',
-            }}
-          />
-          <div style={{ fontSize: '0.72rem', color: 'var(--text)' }}>
-            {fileName}
-          </div>
-          {uploadedAssetUrl ? (
-            <button
-              type="button"
-              onClick={handleRemoveImage}
-              style={{
-                marginTop: '0.5rem',
-                background: 'none',
-                border: '1px solid var(--border)',
-                color: 'var(--text)',
-                borderRadius: '1rem',
-                padding: '0.3rem 0.7rem',
-                fontSize: '0.7rem',
-                cursor: 'pointer',
-              }}
-            >
-              Remove Image
-            </button>
-          ) : null}
+      ) : assets.length ? (
+        <div className="image-upload-strip">
+          {assets.map((asset, index) => (
+            <div className="image-upload-thumb" key={asset.id || `${asset.assetUrl}-${index}`}>
+              <img
+                src={asset.assetUrl || asset.previewUrl}
+                alt={asset.fileName || `Image ${index + 1}`}
+              />
+              <button
+                type="button"
+                className="image-upload-remove"
+                onClick={(event) => handleRemoveImage(event, index)}
+                aria-label={`Remove image ${index + 1}`}
+              >
+                ×
+              </button>
+            </div>
+          ))}
         </div>
       ) : (
         <div style={{ fontSize: '0.78rem' }}>
-          Drag & drop an image, or click to browse
+          Drag & drop {allowMultiple ? 'images' : 'an image'}, or click to browse
         </div>
       )}
     </div>

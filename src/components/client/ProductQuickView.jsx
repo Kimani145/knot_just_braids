@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import formatCurrency from '../../utils/formatCurrency'
 
 function ProductQuickView({
@@ -66,10 +66,6 @@ function ProductQuickView({
     }
     goPrev()
   }
-
-  useEffect(() => {
-    setActiveIndex(0)
-  }, [item?.id, isOpen])
 
   if (!item) return null
 

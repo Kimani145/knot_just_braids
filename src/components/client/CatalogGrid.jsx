@@ -1,7 +1,7 @@
 import StyleCard from './StyleCard'
 import { SkeletonCard } from '../layout/Skeletons'
 
-function CatalogGrid({ items, isSalon, isLoading, onBook, onAddToCart }) {
+function CatalogGrid({ items, isSalon, isLoading, onBook, onAddToCart, onInquire }) {
   if (isLoading) {
     return (
       <div className="catalog-grid" id="catalogGrid">
@@ -21,6 +21,7 @@ function CatalogGrid({ items, isSalon, isLoading, onBook, onAddToCart }) {
           isSalon={isSalon}
           onBook={onBook}
           onAddToCart={onAddToCart}
+          onInquire={onInquire}
         />
       ))}
     </div>

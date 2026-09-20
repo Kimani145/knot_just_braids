@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { onAuthStateChanged, signOut as signOutAuth } from 'firebase/auth'
 import { collection, onSnapshot } from 'firebase/firestore'
 import { SpeedInsights } from '@vercel/speed-insights/react'
+import { Toaster, toast } from 'sonner'
 import AnnouncementBar from './components/AnnouncementBar'
 import Navigation from './components/layout/Navigation'
 import FeedToggle from './components/layout/FeedToggle'
@@ -66,16 +67,23 @@ const mapSalonStyle = (docSnapshot, index) => {
 
 const mapBeadProduct = (docSnapshot, index) => {
   const data = docSnapshot.data()
+  const pricingType = data.pricingType === 'range' ? 'range' : 'fixed'
+  const images = Array.isArray(data.images) ? data.images.filter(Boolean) : []
+  const coverImage = images[0] ?? data.assetUrl ?? ''
 
   return {
     id: docSnapshot.id,
     name: data.name ?? 'Untitled product',
     price: Number(data.price) || 0,
+    priceMax:
+      pricingType === 'range' ? Number(data.priceMax) || Number(data.price) || 0 : null,
+    pricingType,
     stock: Math.max(0, Number.parseInt(data.stock, 10) || 0),
     emoji: data.emoji ?? '📿',
     desc: data.description ?? data.desc ?? 'New product',
     bg: data.bg ?? BEAD_BACKGROUNDS[index % BEAD_BACKGROUNDS.length],
-    assetUrl: data.assetUrl ?? '',
+    images,
+    assetUrl: coverImage,
   }
 }
 
@@ -320,13 +328,13 @@ function App() {
       leaveAdminRoute()
     } catch (error) {
       console.error('Admin sign-out failed:', error)
-      window.alert('Unable to sign out right now.')
+      toast.error('Unable to sign out right now.')
     }
   }
 
   const handleBookStyle = (item) => {
     setBookingStyle(item.name)
-    setBookingStyleImageUrl(item.assetUrl || item.image || '')
+    setBookingStyleImageUrl(item.images?.[0] || item.assetUrl || item.image || '')
     setIsBookingOpen(true)
   }
 
@@ -335,9 +343,26 @@ function App() {
     setBookingStyleImageUrl('')
   }
 
+  const handleInquire = (item) => {
+    const minPrice = Number(item.price) || 0
+    const maxPrice = Number(item.priceMax) || minPrice
+    const quoteText = `${minPrice.toLocaleString('en-KE')}–${maxPrice.toLocaleString(
+      'en-KE',
+    )}`
+    const message = `Hi! I want a custom quote for ${item.name} (Kshs ${quoteText}).`
+    const whatsappUrl = `https://wa.me/254797343855?text=${encodeURIComponent(message)}`
+    window.open(whatsappUrl, '_blank', 'noopener,noreferrer')
+    toast.success('Inquiry opened in WhatsApp.')
+  }
+
   const handleAddToCart = (item) => {
+    if (item.pricingType === 'range') {
+      handleInquire(item)
+      return
+    }
+
     if (item.stock !== undefined && item.stock <= 0) {
-      window.alert('Out of stock!')
+      toast.error('Out of stock!')
       return
     }
 
@@ -359,7 +384,10 @@ function App() {
           price: Number(item.price) || 0,
           emoji: item.emoji,
           bg: item.bg,
-          assetUrl: item.assetUrl,
+          pricingType: item.pricingType === 'range' ? 'range' : 'fixed',
+          priceMax: item.priceMax ?? null,
+          images: Array.isArray(item.images) ? item.images : [],
+          assetUrl: item.images?.[0] || item.assetUrl || '',
           qty: 1,
           stock: item.stock,
         },
@@ -393,6 +421,7 @@ function App() {
               loadingBeads={loadingBeads}
               onBook={handleBookStyle}
               onAddToCart={handleAddToCart}
+              onInquire={handleInquire}
             />
           </>
         ) : currentView === 'privacy' ? (
@@ -455,6 +484,7 @@ function App() {
         onClose={handleCloseCheckout}
         onComplete={handleOrderComplete}
       />
+      <Toaster position="top-center" richColors />
     </>
   )
 }

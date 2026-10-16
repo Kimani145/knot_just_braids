@@ -29,6 +29,9 @@ import {
 } from '../../constants/catalog'
 import { sendDynamicEmail } from '../../utils/emailService'
 import { generateReminderHTML } from '../../utils/emailTemplates'
+import { Video } from 'lucide-react'
+import VideoLinksField from './VideoLinksField'
+import { sanitizeVideos } from '../../utils/tiktok'
 
 const initialSalonForm = {
   name: '',
@@ -38,6 +41,8 @@ const initialSalonForm = {
   emoji: '',
   desc: '',
   image: null,
+  videos: [],
+  pendingVideoUrl: '',
 }
 
 const initialBeadForm = {
@@ -51,6 +56,8 @@ const initialBeadForm = {
   emoji: '',
   desc: '',
   images: [],
+  videos: [],
+  pendingVideoUrl: '',
 }
 
 const initialInventoryEditForm = {
@@ -62,6 +69,9 @@ const initialInventoryEditForm = {
   duration: '',
   stock: '',
   desc: '',
+  videos: [],
+  initialVideos: [],
+  pendingVideoUrl: '',
 }
 
 const normalizePriceInput = (value) => {
@@ -172,6 +182,18 @@ function InventoryQuickEditModal({
                 placeholder="Short product or style description"
               />
             </div>
+
+            <VideoLinksField
+              videos={editForm.videos}
+              onChange={(nextVideos) =>
+                onChange('videos')({ target: { value: nextVideos } })
+              }
+              pendingUrl={editForm.pendingVideoUrl}
+              onPendingUrlChange={(nextUrl) =>
+                onChange('pendingVideoUrl')({ target: { value: nextUrl } })
+              }
+              idPrefix="inventory-edit-video"
+            />
 
             {feedback ? (
               <p
@@ -621,6 +643,7 @@ function AdminView({
   }
 
   const openInventoryEdit = (type, item) => {
+    const itemVideos = sanitizeVideos(item.videos)
     setInventoryEditForm({
       id: item.id,
       type,
@@ -630,6 +653,9 @@ function AdminView({
       duration: item.duration ?? '',
       stock: type === 'beads' ? String(item.stock ?? 0) : '',
       desc: item.desc ?? item.description ?? '',
+      videos: itemVideos,
+      initialVideos: itemVideos,
+      pendingVideoUrl: '',
     })
     setInventoryEditFeedback(null)
   }
@@ -641,6 +667,14 @@ function AdminView({
 
   const handleUpdateInventoryItem = async (event) => {
     event.preventDefault()
+
+    if (inventoryEditForm.pendingVideoUrl?.trim()) {
+      setInventoryEditFeedback({
+        type: 'error',
+        message: 'Add or clear the video link before saving.',
+      })
+      return
+    }
 
     const priceValue = Number(inventoryEditForm.price)
     if (!priceValue || priceValue <= 0) {
@@ -673,6 +707,12 @@ function AdminView({
       payload.stock = Math.max(0, Number.parseInt(inventoryEditForm.stock, 10) || 0)
     }
 
+    const currentVideos = sanitizeVideos(inventoryEditForm.videos)
+    const initialVideos = sanitizeVideos(inventoryEditForm.initialVideos)
+    if (JSON.stringify(currentVideos) !== JSON.stringify(initialVideos)) {
+      payload.videos = currentVideos
+    }
+
     try {
       await updateDoc(doc(db, collectionName, String(inventoryEditForm.id)), payload)
       closeInventoryEdit()
@@ -695,6 +735,10 @@ function AdminView({
 
   const handleAddSalon = async (event) => {
     event.preventDefault()
+    if (salonForm.pendingVideoUrl?.trim()) {
+      pushDashboardFeedback('error', 'Add or clear the video link before saving.')
+      return
+    }
     if (!salonForm.name.trim() || !salonForm.price || !salonForm.desc.trim()) {
       pushDashboardFeedback('error', 'Please fill in the name, price, and description.')
       return
@@ -709,6 +753,7 @@ function AdminView({
     const bg = SALON_BACKGROUNDS[salonStyles.length % SALON_BACKGROUNDS.length]
     const assetUrl = salonForm.image?.assetUrl || ''
     const emoji = salonForm.emoji.trim() || '✨'
+    const videos = sanitizeVideos(salonForm.videos)
 
     try {
       await addDoc(collection(db, SALON_STYLES_COLLECTION), {
@@ -719,6 +764,7 @@ function AdminView({
         assetUrl,
         emoji,
         bg,
+        videos,
         createdAt: serverTimestamp(),
       })
 
@@ -733,6 +779,10 @@ function AdminView({
 
   const handleAddBead = async (event) => {
     event.preventDefault()
+    if (beadForm.pendingVideoUrl?.trim()) {
+      pushDashboardFeedback('error', 'Add or clear the video link before saving.')
+      return
+    }
     const nextErrors = {
       name: validateBeadField('name'),
       price: validateBeadField('price'),
@@ -755,6 +805,7 @@ function AdminView({
       .filter(Boolean)
     const assetUrl = images[0] ?? ''
     const emoji = beadForm.emoji.trim() || '📿'
+    const videos = sanitizeVideos(beadForm.videos)
 
     try {
       await addDoc(collection(db, BEAD_PRODUCTS_COLLECTION), {
@@ -772,6 +823,7 @@ function AdminView({
         assetUrl,
         emoji,
         bg,
+        videos,
         createdAt: serverTimestamp(),
       })
 
@@ -1071,6 +1123,17 @@ function AdminView({
                     {renderGallerySelection('salon', salonForm.image)}
                   </div>
                 ) : null}
+                <VideoLinksField
+                  videos={salonForm.videos}
+                  onChange={(nextVideos) =>
+                    setSalonForm((prev) => ({ ...prev, videos: nextVideos }))
+                  }
+                  pendingUrl={salonForm.pendingVideoUrl}
+                  onPendingUrlChange={(nextUrl) =>
+                    setSalonForm((prev) => ({ ...prev, pendingVideoUrl: nextUrl }))
+                  }
+                  idPrefix="salon-video"
+                />
                 <div className="a-fg full">
                   <button className="a-add-btn" type="submit">
                     ＋ Add Hair Style
@@ -1101,6 +1164,11 @@ function AdminView({
                         )}
                       </span>
                       <span className="name">{item.name}</span>
+                      {item.videos?.length > 0 ? (
+                        <span className="a-video-badge" title={`${item.videos.length} video(s)`}>
+                          <Video size={12} /> {item.videos.length}
+                        </span>
+                      ) : null}
                       <span className="sub">
                         {formatCurrency(item.price)} · {item.duration}
                       </span>
@@ -1210,6 +1278,17 @@ function AdminView({
                       allowMultiple
                     />
                   </div>
+                  <VideoLinksField
+                    videos={beadForm.videos}
+                    onChange={(nextVideos) =>
+                      setBeadForm((prev) => ({ ...prev, videos: nextVideos }))
+                    }
+                    pendingUrl={beadForm.pendingVideoUrl}
+                    onPendingUrlChange={(nextUrl) =>
+                      setBeadForm((prev) => ({ ...prev, pendingVideoUrl: nextUrl }))
+                    }
+                    idPrefix="bead-video"
+                  />
                 </div>
                 <div className="a-group full">
                   <h4 className="a-group-title">Pricing & Stock</h4>
@@ -1307,6 +1386,11 @@ function AdminView({
                         )}
                       </span>
                       <span className="name">{item.name}</span>
+                      {item.videos?.length > 0 ? (
+                        <span className="a-video-badge" title={`${item.videos.length} video(s)`}>
+                          <Video size={12} /> {item.videos.length}
+                        </span>
+                      ) : null}
                       <span className="sub">
                         {(item.pricingType === 'range'
                           ? `${formatCurrency(item.price)} – ${formatCurrency(item.priceMax)}`

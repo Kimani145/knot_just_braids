@@ -24,6 +24,7 @@ import {
   SALON_BACKGROUNDS,
   SALON_STYLES_COLLECTION,
 } from './constants/catalog'
+import { sanitizeVideos } from './utils/tiktok'
 
 const getViewFromPath = () => {
   if (typeof window === 'undefined') return 'client'
@@ -62,6 +63,7 @@ const mapSalonStyle = (docSnapshot, index) => {
     desc: data.description ?? data.desc ?? 'New style',
     bg: data.bg ?? SALON_BACKGROUNDS[index % SALON_BACKGROUNDS.length],
     assetUrl: data.assetUrl ?? '',
+    videos: sanitizeVideos(data.videos),
   }
 }
 
@@ -84,6 +86,7 @@ const mapBeadProduct = (docSnapshot, index) => {
     bg: data.bg ?? BEAD_BACKGROUNDS[index % BEAD_BACKGROUNDS.length],
     images,
     assetUrl: coverImage,
+    videos: sanitizeVideos(data.videos),
   }
 }
 

@@ -1,10 +1,14 @@
-import { useState } from 'react'
 import { Ban, Clock3, Package } from 'lucide-react'
 import formatCurrency from '../../utils/formatCurrency'
-import ProductQuickView from './ProductQuickView'
 
-function StyleCard({ item, isSalon, onBook, onAddToCart, onInquire }) {
-  const [isQuickViewOpen, setIsQuickViewOpen] = useState(false)
+function StyleCard({
+  item,
+  isSalon,
+  onBook,
+  onAddToCart,
+  onInquire,
+  onOpenQuickView,
+}) {
   const pricingType = item.pricingType === 'range' ? 'range' : 'fixed'
   const imageUrl = item.images?.[0] || item.assetUrl || item.image?.assetUrl || item.image?.previewUrl
   const isRangeProduct = !isSalon && pricingType === 'range'
@@ -35,13 +39,13 @@ function StyleCard({ item, isSalon, onBook, onAddToCart, onInquire }) {
     <div className="card">
       <div
         className={`card-thumb ${item.bg}`}
-        onClick={() => setIsQuickViewOpen(true)}
+        onClick={() => onOpenQuickView?.(item)}
         role="button"
         tabIndex={0}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault()
-            setIsQuickViewOpen(true)
+            onOpenQuickView?.(item)
           }
         }}
       >
@@ -89,15 +93,6 @@ function StyleCard({ item, isSalon, onBook, onAddToCart, onInquire }) {
                 : 'Add to Cart +'}
         </button>
       </div>
-      <ProductQuickView
-        isOpen={isQuickViewOpen}
-        item={item}
-        isSalon={isSalon}
-        onClose={() => setIsQuickViewOpen(false)}
-        onBook={onBook}
-        onAddToCart={onAddToCart}
-        onInquire={onInquire}
-      />
     </div>
   )
 }

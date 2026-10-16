@@ -1,14 +1,15 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import formatCurrency from '../../utils/formatCurrency'
 
-function ProductQuickView({
-  isOpen,
+function ProductQuickViewContent({
   item,
   isSalon,
   onClose,
   onBook,
   onAddToCart,
   onInquire,
+  closeBtnRef,
 }) {
   const images = useMemo(() => {
     if (!item) return []
@@ -67,88 +68,174 @@ function ProductQuickView({
     goPrev()
   }
 
-  if (!item) return null
-
   return (
-    <div className={`overlay${isOpen ? ' open' : ''}`}>
-      <div className="sheet quick-view-sheet">
-        <div className="sheet-header">
-          <h2>{item.name}</h2>
-          <button className="close-btn" onClick={onClose} type="button">
-            ✕
-          </button>
+    <div className="sheet quick-view-sheet">
+      <div className="sheet-header">
+        <h2 id="quickViewTitle">{item.name}</h2>
+        <button
+          ref={closeBtnRef}
+          className="close-btn"
+          onClick={onClose}
+          type="button"
+          aria-label="Close details"
+        >
+          ✕
+        </button>
+      </div>
+      <div className="quick-view-content">
+        <div className={`quick-view-carousel ${item.bg}`}>
+          {images.length ? (
+            <>
+              <div
+                className="quick-view-track"
+                style={{ transform: `translateX(-${activeIndex * 100}%)` }}
+                onTouchStart={handleTouchStart}
+                onTouchEnd={handleTouchEnd}
+              >
+                {images.map((image, index) => (
+                  <div className="quick-view-slide" key={`${image}-${index}`}>
+                    <img src={image} alt={`${item.name} ${index + 1}`} />
+                  </div>
+                ))}
+              </div>
+              {images.length > 1 ? (
+                <>
+                  <button
+                    className="quick-view-nav prev"
+                    type="button"
+                    onClick={goPrev}
+                    aria-label="Previous image"
+                  >
+                    ‹
+                  </button>
+                  <button
+                    className="quick-view-nav next"
+                    type="button"
+                    onClick={goNext}
+                    aria-label="Next image"
+                  >
+                    ›
+                  </button>
+                  <div className="quick-view-dots">
+                    {images.map((_, index) => (
+                      <button
+                        key={`dot-${index}`}
+                        className={`quick-view-dot${index === activeIndex ? ' active' : ''}`}
+                        type="button"
+                        onClick={() => setActiveIndex(index)}
+                        aria-label={`Go to image ${index + 1}`}
+                      />
+                    ))}
+                  </div>
+                </>
+              ) : null}
+            </>
+          ) : (
+            <div className="quick-view-emoji">{item.emoji}</div>
+          )}
         </div>
-        <div className="quick-view-content">
-          <div className={`quick-view-carousel ${item.bg}`}>
-            {images.length ? (
-              <>
-                <div
-                  className="quick-view-track"
-                  style={{ transform: `translateX(-${activeIndex * 100}%)` }}
-                  onTouchStart={handleTouchStart}
-                  onTouchEnd={handleTouchEnd}
-                >
-                  {images.map((image, index) => (
-                    <div className="quick-view-slide" key={`${image}-${index}`}>
-                      <img src={image} alt={`${item.name} ${index + 1}`} />
-                    </div>
-                  ))}
-                </div>
-                {images.length > 1 ? (
-                  <>
-                    <button
-                      className="quick-view-nav prev"
-                      type="button"
-                      onClick={goPrev}
-                      aria-label="Previous image"
-                    >
-                      ‹
-                    </button>
-                    <button
-                      className="quick-view-nav next"
-                      type="button"
-                      onClick={goNext}
-                      aria-label="Next image"
-                    >
-                      ›
-                    </button>
-                    <div className="quick-view-dots">
-                      {images.map((_, index) => (
-                        <button
-                          key={`dot-${index}`}
-                          className={`quick-view-dot${index === activeIndex ? ' active' : ''}`}
-                          type="button"
-                          onClick={() => setActiveIndex(index)}
-                          aria-label={`Go to image ${index + 1}`}
-                        />
-                      ))}
-                    </div>
-                  </>
-                ) : null}
-              </>
-            ) : (
-              <div className="quick-view-emoji">{item.emoji}</div>
-            )}
-          </div>
-          <p className="quick-view-price">{showPrice}</p>
-          <p className="quick-view-desc">{item.desc}</p>
-          <button
-            className="card-action"
-            type="button"
-            onClick={handleAction}
-            disabled={isOutOfStock}
-          >
-            {isSalon
-              ? 'Book this style →'
-              : isRangeProduct
-                ? 'Inquire →'
-                : isOutOfStock
-                  ? 'Out of Stock'
-                  : 'Add to Cart +'}
-          </button>
-        </div>
+        <p className="quick-view-price">{showPrice}</p>
+        <p className="quick-view-desc">{item.desc}</p>
+        <button
+          className="card-action"
+          type="button"
+          onClick={handleAction}
+          disabled={isOutOfStock}
+        >
+          {isSalon
+            ? 'Book this style →'
+            : isRangeProduct
+              ? 'Inquire →'
+              : isOutOfStock
+                ? 'Out of Stock'
+                : 'Add to Cart +'}
+        </button>
       </div>
     </div>
+  )
+}
+
+function ProductQuickView({
+  isOpen,
+  item,
+  isSalon,
+  onClose,
+  onBook,
+  onAddToCart,
+  onInquire,
+}) {
+  const [cachedItem, setCachedItem] = useState(item)
+  const [prevItem, setPrevItem] = useState(item)
+  const openerRef = useRef(null)
+  const closeBtnRef = useRef(null)
+
+  if (item && item !== prevItem) {
+    setPrevItem(item)
+    setCachedItem(item)
+  }
+
+  const activeItem = item || cachedItem
+
+  useEffect(() => {
+    if (isOpen) {
+      openerRef.current = document.activeElement
+      closeBtnRef.current?.focus?.()
+    } else if (openerRef.current) {
+      openerRef.current?.focus?.()
+      openerRef.current = null
+    }
+  }, [isOpen])
+
+  useEffect(() => {
+    if (!isOpen) return
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = originalOverflow
+    }
+  }, [isOpen])
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.stopPropagation()
+        onClose?.()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
+  if (!activeItem && !isOpen) return null
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
+    <div
+      className={`overlay${isOpen ? ' open' : ''}`}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose?.()
+        }
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="quickViewTitle"
+    >
+      {activeItem ? (
+        <ProductQuickViewContent
+          key={activeItem.id}
+          item={activeItem}
+          isSalon={isSalon}
+          onClose={onClose}
+          onBook={onBook}
+          onAddToCart={onAddToCart}
+          onInquire={onInquire}
+          closeBtnRef={closeBtnRef}
+        />
+      ) : null}
+    </div>,
+    document.body,
   )
 }
 

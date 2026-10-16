@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import formatCurrency from '../../utils/formatCurrency'
+import TikTokPlayer from './TikTokPlayer'
 
 function ProductQuickViewContent({
   item,
   isSalon,
+  isOpen,
   onClose,
   onBook,
   onAddToCart,
@@ -17,6 +19,25 @@ function ProductQuickViewContent({
     const fallback = item.assetUrl || item.image?.assetUrl || item.image?.previewUrl || ''
     return listedImages.length ? listedImages : fallback ? [fallback] : []
   }, [item])
+
+  const videos = useMemo(() => {
+    return Array.isArray(item?.videos) ? item.videos : []
+  }, [item])
+
+  const slides = useMemo(() => {
+    const imageSlides = images.map((image, index) => ({
+      type: 'image',
+      src: image,
+      id: `img-${image}-${index}`,
+    }))
+    const videoSlides = videos.map((video, index) => ({
+      type: 'video',
+      video,
+      id: `vid-${video.id || index}`,
+    }))
+    return [...imageSlides, ...videoSlides]
+  }, [images, videos])
+
   const [activeIndex, setActiveIndex] = useState(0)
   const [touchStartX, setTouchStartX] = useState(0)
 
@@ -46,21 +67,25 @@ function ProductQuickViewContent({
       : formatCurrency(item?.price)
 
   const goPrev = () => {
-    setActiveIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1))
+    if (slides.length <= 1) return
+    setActiveIndex((prev) => (prev === 0 ? slides.length - 1 : prev - 1))
   }
 
   const goNext = () => {
-    setActiveIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1))
+    if (slides.length <= 1) return
+    setActiveIndex((prev) => (prev === slides.length - 1 ? 0 : prev + 1))
   }
 
   const handleTouchStart = (event) => {
+    if (slides[activeIndex]?.type === 'video') return
     setTouchStartX(event.changedTouches?.[0]?.clientX || 0)
   }
 
   const handleTouchEnd = (event) => {
+    if (slides[activeIndex]?.type === 'video') return
     const endX = event.changedTouches?.[0]?.clientX || 0
     const delta = touchStartX - endX
-    if (Math.abs(delta) < 40 || images.length < 2) return
+    if (Math.abs(delta) < 40 || slides.length < 2) return
     if (delta > 0) {
       goNext()
       return
@@ -84,7 +109,7 @@ function ProductQuickViewContent({
       </div>
       <div className="quick-view-content">
         <div className={`quick-view-carousel ${item.bg}`}>
-          {images.length ? (
+          {slides.length ? (
             <>
               <div
                 className="quick-view-track"
@@ -92,19 +117,32 @@ function ProductQuickViewContent({
                 onTouchStart={handleTouchStart}
                 onTouchEnd={handleTouchEnd}
               >
-                {images.map((image, index) => (
-                  <div className="quick-view-slide" key={`${image}-${index}`}>
-                    <img src={image} alt={`${item.name} ${index + 1}`} />
+                {slides.map((slide, index) => (
+                  <div
+                    className={`quick-view-slide${slide.type === 'video' ? ' quick-view-video-slide' : ''}`}
+                    key={slide.id}
+                  >
+                    {slide.type === 'image' ? (
+                      <img src={slide.src} alt={`${item.name} ${index + 1}`} />
+                    ) : (
+                      <TikTokPlayer
+                        video={slide.video}
+                        item={item}
+                        isActiveSlide={activeIndex === index}
+                        isOpen={isOpen}
+                        coverImage={images[0] || null}
+                      />
+                    )}
                   </div>
                 ))}
               </div>
-              {images.length > 1 ? (
+              {slides.length > 1 ? (
                 <>
                   <button
                     className="quick-view-nav prev"
                     type="button"
                     onClick={goPrev}
-                    aria-label="Previous image"
+                    aria-label="Previous slide"
                   >
                     ‹
                   </button>
@@ -112,19 +150,23 @@ function ProductQuickViewContent({
                     className="quick-view-nav next"
                     type="button"
                     onClick={goNext}
-                    aria-label="Next image"
+                    aria-label="Next slide"
                   >
                     ›
                   </button>
                   <div className="quick-view-dots">
-                    {images.map((_, index) => (
+                    {slides.map((slide, index) => (
                       <button
-                        key={`dot-${index}`}
-                        className={`quick-view-dot${index === activeIndex ? ' active' : ''}`}
+                        key={`dot-${slide.id}`}
+                        className={`quick-view-dot${slide.type === 'video' ? ' video-dot' : ''}${index === activeIndex ? ' active' : ''}`}
                         type="button"
                         onClick={() => setActiveIndex(index)}
-                        aria-label={`Go to image ${index + 1}`}
-                      />
+                        aria-label={slide.type === 'video' ? `Go to video ${index + 1}` : `Go to slide ${index + 1}`}
+                      >
+                        {slide.type === 'video' ? (
+                          <span className="dot-play-icon" aria-hidden="true">▶</span>
+                        ) : null}
+                      </button>
                     ))}
                   </div>
                 </>
@@ -227,6 +269,7 @@ function ProductQuickView({
           key={activeItem.id}
           item={activeItem}
           isSalon={isSalon}
+          isOpen={isOpen}
           onClose={onClose}
           onBook={onBook}
           onAddToCart={onAddToCart}

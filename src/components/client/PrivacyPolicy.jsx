@@ -89,6 +89,35 @@ function PrivacyPolicy() {
           </p>
         </section>
 
+        {/* TODO(legal-review) */}
+        <section style={{
+          background: 'var(--surface)',
+          padding: '1.5rem',
+          borderRadius: 'var(--radius)',
+          border: '1px solid var(--border)',
+          transition: 'background var(--transition), border-color var(--transition)',
+        }}>
+          <h2 style={{
+            fontFamily: "'Playfair Display', serif",
+            fontSize: '1.3rem',
+            fontWeight: 600,
+            marginBottom: '0.75rem',
+            color: 'var(--feed, var(--salon-accent))',
+          }}>Embedded Video (TikTok)</h2>
+          <p>
+            Our catalog product views may include optional embedded video content hosted by TikTok. Embedded video playback begins only after you interact with the player by tapping play. Upon activation, TikTok may set cookies and collect technical or browsing data under its own policy. For details regarding their data collection and usage practices, please consult{' '}
+            <a
+              href="https://www.tiktok.com/legal/page/row/privacy-policy/en"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: 'var(--feed, var(--salon-accent))', textDecoration: 'underline' }}
+            >
+              TikTok's Privacy Policy
+            </a>
+            .
+          </p>
+        </section>
+
         <section style={{
           background: 'var(--surface)',
           padding: '1.5rem',

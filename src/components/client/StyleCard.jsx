@@ -1,4 +1,4 @@
-import { Ban, Clock3, Package } from 'lucide-react'
+import { Ban, Clock3, Package, Video } from 'lucide-react'
 import formatCurrency from '../../utils/formatCurrency'
 
 function StyleCard({
@@ -16,6 +16,7 @@ function StyleCard({
     !isSalon && !isRangeProduct && item.stock !== undefined && item.stock <= 0
   const isLowStock =
     !isSalon && !isRangeProduct && item.stock !== undefined && item.stock > 0 && item.stock < 3
+  const hasVideos = Array.isArray(item.videos) && item.videos.length > 0
   const showPrice =
     pricingType === 'range'
       ? `${formatCurrency(item.price)} – ${formatCurrency(item.priceMax)}`
@@ -63,6 +64,11 @@ function StyleCard({
         ) : null}
         {isLowStock ? (
           <span className="badge-new">Low Stock</span>
+        ) : null}
+        {hasVideos ? (
+          <span className="badge-video" title="Video included" aria-label="Video included">
+            <Video size={13} />
+          </span>
         ) : null}
       </div>
       <div className="card-body">

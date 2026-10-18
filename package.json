@@ -8,7 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:unit": "node --test src/utils/tiktok.test.js",
+    "test:unit": "node --test src/utils/*.test.js tests/*.test.js",
     "generate-favicons": "bash scripts/generate-favicons.sh"
   },
   "dependencies": {

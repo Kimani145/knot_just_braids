@@ -1,0 +1,46 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null && request.auth.uid in ['PASTE_ADMIN_UID_HERE'];
+    }
+    function str(v, max) { return v is string && v.size() <= max; }
+    function isStockDecrement() {
+      let before = resource.data;
+      let after = request.resource.data;
+      return after.diff(before).affectedKeys().hasOnly(['stock'])
+        && after.stock is int && after.stock >= 0
+        && after.stock < before.stock && before.stock - after.stock <= 50;
+    }
+    function validBooking() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['clientName','clientEmail','clientPhone','name','firstName','lastName',
+          'email','phone','style','date','time','length','notes','referencePhotoUrls','status',
+          'agreedToPolicy','createdAt'])
+        && d.keys().hasAll(['clientName','style','date','time','status','agreedToPolicy','createdAt'])
+        && str(d.clientName, 120) && str(d.style, 200) && str(d.date, 40) && str(d.time, 40)
+        && str(d.get('clientEmail', ''), 254) && str(d.get('clientPhone', ''), 40)
+        && str(d.get('notes', ''), 1000)
+        && (!('referencePhotoUrls' in d)
+            || (d.referencePhotoUrls is list && d.referencePhotoUrls.size() <= 10))
+        && d.status == 'pending' && d.agreedToPolicy == true && d.createdAt == request.time;
+    }
+    function validOrder() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['clientName','clientEmail','clientPhone','name','firstName','lastName',
+          'email','phone','address','items','lineItems','total','status','agreedToPolicy','createdAt'])
+        && d.keys().hasAll(['clientName','items','lineItems','total','status','agreedToPolicy','createdAt'])
+        && str(d.clientName, 120) && str(d.items, 2000) && str(d.get('address', ''), 500)
+        && str(d.get('clientEmail', ''), 254) && str(d.get('clientPhone', ''), 40)
+        && d.lineItems is list && d.lineItems.size() >= 1 && d.lineItems.size() <= 30
+        && d.total is number && d.total > 0 && d.total <= 1000000
+        && d.status == 'pending' && d.agreedToPolicy == true && d.createdAt == request.time;
+    }
+    match /salon_styles/{id}   { allow read: if true; allow write: if isAdmin(); }
+    match /bead_products/{id}  { allow read: if true; allow create, delete: if isAdmin();
+                                 allow update: if isAdmin() || isStockDecrement(); }
+    match /bookings/{id}       { allow create: if validBooking(); allow read, update, delete: if isAdmin(); }
+    match /orders/{id}         { allow create: if validOrder();   allow read, update, delete: if isAdmin(); }
+    match /assets_metadata/{id}{ allow read, write: if isAdmin(); }
+  }
+}

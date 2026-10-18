@@ -57,12 +57,49 @@ This runbook documents all human-only deployment, security, and account configur
 
 ---
 
-## Step 6: Deploying Firestore Security Rules
+## Step 6: Deploying & Verifying Firestore Security Rules
 1. **Initial Deployment (WS1 - Appendix A):**
    - Copy the contents of `firestore.rules` (which includes the temporary anonymous stock decrement carve-out).
    - In Firebase Console > Firestore Database > Rules, paste and deploy.
    - Replace `'PASTE_ADMIN_UID_HERE'` with your actual admin UID(s).
-2. **Hardened Cut-Over (WS5d - Rules v2):**
+
+2. **Rules Playground Test Case Matrix:**
+   Test these cases in Firebase Console > Rules > Rules Playground before public launch:
+   - **Case 1: Anonymous Read Catalog (`/bead_products/p1`, `/salon_styles/s1`)**
+     - Type: `get` / `list`
+     - Auth: Unauthenticated
+     - Expected: **ALLOW**
+   - **Case 2: Anonymous Valid Stock Decrement (`/bead_products/p1`)**
+     - Type: `update`
+     - Auth: Unauthenticated
+     - Data: `{ stock: 8 }` on existing doc `{ stock: 10 }` (delta <= 50, only `stock` changed)
+     - Expected: **ALLOW**
+   - **Case 3: Anonymous Price Tampering (`/bead_products/p1`)**
+     - Type: `update`
+     - Auth: Unauthenticated
+     - Data: `{ price: 1, stock: 9 }`
+     - Expected: **DENY** (only `stock` is permitted to change)
+   - **Case 4: Anonymous Stock Increment or Negative Stock (`/bead_products/p1`)**
+     - Type: `update`
+     - Auth: Unauthenticated
+     - Data: `{ stock: 15 }` (increment) or `{ stock: -1 }` (negative)
+     - Expected: **DENY**
+   - **Case 5: Anonymous Order Creation (`/orders/ord1`)**
+     - Type: `create`
+     - Auth: Unauthenticated
+     - Data: Valid payload matching `validOrder()` (`status: 'pending'`, `agreedToPolicy: true`, `createdAt: request.time`, bounded `total` and `lineItems`)
+     - Expected: **ALLOW**
+   - **Case 6: Malformed Order Creation (`/orders/ord1`)**
+     - Type: `create`
+     - Auth: Unauthenticated
+     - Data: Injected fields like `{ total: -50 }` or `{ status: 'completed' }` or extra unknown keys
+     - Expected: **DENY**
+   - **Case 7: Admin Write Any Collection**
+     - Type: `create` / `update` / `delete`
+     - Auth: Authenticated with UID in `isAdmin()` allowlist
+     - Expected: **ALLOW**
+
+3. **Hardened Cut-Over (WS5d - Rules v2):**
    - **DO NOT APPLY UNTIL THE API CHECKOUT IS CONFIRMED LIVE AND `VITE_USE_API_CHECKOUT=true`!**
    - Deploy the v2 rules from `firestore.rules.v2` which completely lock down writes to admin UIDs and backend service accounts.
 

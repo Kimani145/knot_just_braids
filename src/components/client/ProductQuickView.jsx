@@ -154,6 +154,7 @@ function ProductQuickViewContent({
                   >
                     {slide.type === 'image' ? (
                       <img
+                        className="quick-view-image"
                         src={getOptimizedCloudinaryUrl(slide.src, { width: 800 })}
                         alt={`${item.name} ${index + 1}`}
                         loading="lazy"

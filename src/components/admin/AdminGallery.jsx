@@ -8,7 +8,7 @@ import {
   query,
   updateDoc,
 } from 'firebase/firestore'
-import { AlertTriangle, Trash2 } from 'lucide-react'
+import { AlertTriangle, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { db } from '../../firebase'
 import { ASSET_METADATA_COLLECTION } from '../../constants/catalog'
@@ -357,12 +357,17 @@ function AdminGallery({
       </div>
 
       {editingAsset ? (
-        <div className="overlay open">
+        <div className="overlay open" role="dialog" aria-modal="true" aria-labelledby="quickEditAssetTitle">
           <div className="sheet gallery-edit-sheet">
             <div className="sheet-header">
-              <h2>Quick Edit Asset</h2>
-              <button className="close-btn" onClick={closeQuickEdit} type="button">
-                ✕
+              <h2 id="quickEditAssetTitle">Quick Edit Asset</h2>
+              <button
+                className="close-btn"
+                onClick={closeQuickEdit}
+                type="button"
+                aria-label="Close edit dialog"
+              >
+                <X size={18} />
               </button>
             </div>
 
@@ -429,7 +434,7 @@ function AdminGallery({
                 aria-label="Close dialog"
                 disabled={isDeleting}
               >
-                ✕
+                <X size={18} />
               </button>
             </div>
 

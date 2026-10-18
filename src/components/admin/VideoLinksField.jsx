@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { AlertCircle, CheckCircle2, Play, Trash2 } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Images, Play, Trash2 } from 'lucide-react'
 import {
   MAX_VIDEOS_PER_ITEM,
   TIKTOK_URL_ERRORS,
@@ -31,13 +31,14 @@ function VideoLinksField({
     if (isDuplicate) {
       return {
         type: 'error',
-        message: 'This TikTok video has already been added to this item.',
+        message: 'This TikTok post has already been added to this item.',
       }
     }
 
+    const typeLabel = result.kind === 'photo' ? 'photo post' : 'video'
     return {
       type: 'success',
-      message: `Valid TikTok video by @${result.handle} (ID: ${result.id.slice(0, 4)}...${result.id.slice(-4)})`,
+      message: `Valid TikTok ${typeLabel} by @${result.handle} (ID: ${result.id.slice(0, 4)}...${result.id.slice(-4)})`,
       parsed: result,
     }
   }, [pendingUrl, videos])
@@ -53,6 +54,7 @@ function VideoLinksField({
         provider: 'tiktok',
         id: validation.parsed.id,
         handle: validation.parsed.handle,
+        kind: validation.parsed.kind || 'video',
       },
     ]
 
@@ -69,28 +71,32 @@ function VideoLinksField({
     <div className="a-fg full a-video-links-field">
       <div className="a-video-header">
         <label className="a-label" htmlFor={`${idPrefix}-url-input`}>
-          TikTok Videos ({videos.length}/{MAX_VIDEOS_PER_ITEM})
+          TikTok Videos & Photos ({videos.length}/{MAX_VIDEOS_PER_ITEM})
         </label>
       </div>
 
       {videos.length > 0 ? (
-        <ul className="a-video-list" aria-label="Added videos">
+        <ul className="a-video-list" aria-label="Added TikTok media">
           {videos.map((vid, index) => (
             <li className="a-video-item" key={`video-${vid.id}-${index}`}>
               <div className="a-video-item-info">
                 <span className="a-video-item-icon" aria-hidden="true">
-                  <Play size={13} fill="currentColor" />
+                  {vid.kind === 'photo' ? (
+                    <Images size={13} />
+                  ) : (
+                    <Play size={13} fill="currentColor" />
+                  )}
                 </span>
                 <span className="a-video-item-handle">@{vid.handle}</span>
                 <span className="a-video-item-id">
-                  (ID: ...{vid.id.slice(-6)})
+                  {vid.kind === 'photo' ? '(Photo Post)' : `(ID: ...${vid.id.slice(-6)})`}
                 </span>
               </div>
               <button
                 type="button"
                 className="a-video-remove-btn"
                 onClick={() => handleRemoveVideo(index)}
-                aria-label={`Remove video @${vid.handle}`}
+                aria-label={`Remove TikTok post @${vid.handle}`}
               >
                 <Trash2 size={16} />
               </button>
@@ -110,7 +116,7 @@ function VideoLinksField({
               autoComplete="off"
               autoCapitalize="none"
               spellCheck={false}
-              placeholder="https://www.tiktok.com/@handle/video/1234567890"
+              placeholder="https://www.tiktok.com/@handle/video/... or /photo/..."
               value={pendingUrl}
               onChange={(e) => onPendingUrlChange?.(e.target.value)}
               onKeyDown={(e) => {
@@ -126,7 +132,7 @@ function VideoLinksField({
               onClick={handleAddVideo}
               disabled={!validation || validation.type !== 'success'}
             >
-              Add Video
+              {validation?.parsed?.kind === 'photo' ? 'Add Photos' : 'Add Video'}
             </button>
           </div>
 

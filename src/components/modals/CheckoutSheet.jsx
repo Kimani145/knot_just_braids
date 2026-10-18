@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   collection,
   doc,
   runTransaction,
   serverTimestamp,
 } from 'firebase/firestore'
+import { PackageCheck, ShoppingBag, X } from 'lucide-react'
 import PolicyModal from './PolicyModal'
 import { db } from '../../firebase'
 import {
@@ -46,7 +47,7 @@ function CheckoutSheet({ isOpen, cart, onClose, onComplete }) {
     return { total, count: cart.length }
   }, [cart])
 
-  const resetSheet = () => {
+  const resetSheet = useCallback(() => {
     setForm(createInitialForm())
     setIsSuccess(false)
     setSubmitted(null)
@@ -55,12 +56,12 @@ function CheckoutSheet({ isOpen, cart, onClose, onComplete }) {
     setIsPolicyOpen(false)
     setHasAgreedToPolicy(false)
     setFieldErrors({ firstName: '', email: '', address: '' })
-  }
+  }, [])
 
-  const handleCloseSheet = () => {
+  const handleCloseSheet = useCallback(() => {
     resetSheet()
     onClose?.()
-  }
+  }, [resetSheet, onClose])
 
   const handleChange = (field) => (event) => {
     setForm((prev) => ({ ...prev, [field]: event.target.value }))
@@ -274,24 +275,67 @@ function CheckoutSheet({ isOpen, cart, onClose, onComplete }) {
     }
   }
 
+  // Escape key handler
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.stopPropagation()
+        handleCloseSheet()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, handleCloseSheet])
+
+  // Scroll lock with cleanup
+  useEffect(() => {
+    if (!isOpen) return
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = originalOverflow
+    }
+  }, [isOpen])
+
   const handleDone = () => {
     resetSheet()
     onClose?.()
   }
 
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget) {
+      handleCloseSheet()
+    }
+  }
+
   return (
-    <div className={`overlay${isOpen ? ' open' : ''}`} id="checkoutOverlay">
-      <div className="sheet">
+    <div
+      className={`overlay${isOpen ? ' open' : ''}`}
+      id="checkoutOverlay"
+      onClick={handleBackdropClick}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="checkoutTitle"
+    >
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
         <div className="sheet-header">
-          <h2>Checkout</h2>
-          <button className="close-btn" onClick={handleCloseSheet} type="button">
-            ✕
+          <h2 id="checkoutTitle">Checkout</h2>
+          <button
+            className="close-btn"
+            onClick={handleCloseSheet}
+            type="button"
+            aria-label="Close checkout"
+          >
+            <X size={18} />
           </button>
         </div>
         <div id="checkoutContent">
           {isSuccess && submitted ? (
             <div className="success-state">
-              <div className="icon">📦</div>
+              <div className="icon" aria-hidden="true">
+                <PackageCheck size={48} />
+              </div>
               <h3>Order Placed!</h3>
               <p>
                 Thanks {submitted.name}! Your order has been received.
@@ -307,7 +351,7 @@ function CheckoutSheet({ isOpen, cart, onClose, onComplete }) {
                 className="btn btn-full"
                 style={{
                   background: 'var(--bead-accent)',
-                  color: 'white',
+                  color: 'var(--feed-text, white)',
                   marginTop: '0.5rem',
                 }}
                 onClick={handleDone}
@@ -368,7 +412,11 @@ function CheckoutSheet({ isOpen, cart, onClose, onComplete }) {
                 />
               </div>
               <div className="note" id="co-summary">
-                🛒 {totals.count} item(s) —{' '}
+                <ShoppingBag
+                  size={14}
+                  style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }}
+                />
+                {totals.count} item(s) —{' '}
                 <strong>Total: {formatCurrency(totals.total)}</strong>
               </div>
               {submitError ? (
@@ -402,11 +450,14 @@ function CheckoutSheet({ isOpen, cart, onClose, onComplete }) {
               </div>
               <button
                 className="btn btn-primary btn-full"
-                style={{ background: 'var(--bead-accent)' }}
+                style={{
+                  background: 'var(--bead-accent)',
+                  color: 'var(--feed-text, white)',
+                }}
                 type="submit"
                 disabled={isSubmitting}
               >
-                {isSubmitting ? 'Processing Order...' : '📦 Place Order'}
+                {isSubmitting ? 'Processing Order...' : 'Place Order →'}
               </button>
             </form>
           )}

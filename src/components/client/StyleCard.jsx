@@ -1,5 +1,6 @@
-import { Ban, Clock3, Package, Video } from 'lucide-react'
+import { Ban, Clock3, Images, Package, Video } from 'lucide-react'
 import { formatPriceRange } from '../../utils/pricingUtils.js'
+import MediaPlaceholder from '../common/MediaPlaceholder'
 
 function StyleCard({
   item,
@@ -17,6 +18,7 @@ function StyleCard({
   const isLowStock =
     !isSalon && !isRangeProduct && item.stock !== undefined && item.stock > 0 && item.stock < 3
   const hasVideos = Array.isArray(item.videos) && item.videos.length > 0
+  const hasPhotoPost = hasVideos && item.videos.some((v) => v.kind === 'photo')
   const showPrice = formatPriceRange(item.price, item.priceMax, pricingType)
 
   const handleAction = () => {
@@ -36,7 +38,7 @@ function StyleCard({
   return (
     <div className="card">
       <div
-        className={`card-thumb ${item.bg}`}
+        className={`card-thumb ${!imageUrl ? 'has-placeholder' : item.bg || ''}`}
         onClick={() => onOpenQuickView?.(item)}
         role="button"
         tabIndex={0}
@@ -54,7 +56,11 @@ function StyleCard({
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
         ) : (
-          item.emoji
+          <MediaPlaceholder
+            item={item}
+            isSalon={isSalon}
+            isVideo={hasVideos}
+          />
         )}
         {isOutOfStock ? (
           <span className="badge-new badge-danger">Out of Stock</span>
@@ -63,9 +69,19 @@ function StyleCard({
           <span className="badge-new">Low Stock</span>
         ) : null}
         {hasVideos ? (
-          <span className="badge-video" title="Video included" aria-label="Video included">
-            <Video size={13} />
-          </span>
+          hasPhotoPost ? (
+            <span
+              className="badge-video badge-photo"
+              title="TikTok photo gallery included"
+              aria-label="TikTok photo gallery included"
+            >
+              <Images size={13} />
+            </span>
+          ) : (
+            <span className="badge-video" title="Video included" aria-label="Video included">
+              <Video size={13} />
+            </span>
+          )
         ) : null}
       </div>
       <div className="card-body">

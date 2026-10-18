@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
+import { Gem, Scissors } from 'lucide-react'
+import { BRAND } from '../../constants/brand.js'
 
 function FeedToggle({ activeFeed, onChange }) {
   const sliderRef = useRef(null)
@@ -37,17 +39,21 @@ function FeedToggle({ activeFeed, onChange }) {
         <div className="feed-toggle-slider" ref={sliderRef} />
         <button
           ref={salonRef}
+          type="button"
           className={`feed-pill${activeFeed === 'salon' ? ' active' : ''}`}
           onClick={() => onChange('salon')}
         >
-          💇 Knot Just Braids
+          <Scissors size={14} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+          {BRAND.salonName}
         </button>
         <button
           ref={beadsRef}
+          type="button"
           className={`feed-pill${activeFeed === 'beads' ? ' active' : ''}`}
           onClick={() => onChange('beads')}
         >
-          📿 Knot Just Beads
+          <Gem size={14} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+          {BRAND.beadName}
         </button>
       </div>
     </div>

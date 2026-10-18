@@ -8,7 +8,8 @@ export const TIKTOK_URL_ERRORS = {
   host_not_allowed: 'Only official tiktok.com links are allowed.',
   short_link:
     'Short links (vm/vt/m) cannot be embedded directly. Open the link in your phone browser, then copy the address from the browser bar.',
-  unsupported_path: 'Please provide a standard TikTok video link (/@handle/video/id).',
+  unsupported_path:
+    'Please provide a standard TikTok link (/@handle/video/id or /@handle/photo/id).',
   bad_id: 'The TikTok video ID in this link is invalid or unsupported.',
 }
 
@@ -61,14 +62,15 @@ export function parseTikTokUrl(input) {
     return { ok: false, reason: 'host_not_allowed' }
   }
 
-  // Path must be /@handle/video/id[/]
-  const matchVideoPrefix = url.pathname.match(/^\/@([A-Za-z0-9._]{2,32})\/video\/(.*)$/)
-  if (!matchVideoPrefix) {
+  // Path must be /@handle/(video|photo)/id[/]
+  const matchPrefix = url.pathname.match(/^\/@([A-Za-z0-9._]{2,32})\/(video|photo)\/(.*)$/)
+  if (!matchPrefix) {
     return { ok: false, reason: 'unsupported_path' }
   }
 
-  const handle = matchVideoPrefix[1]
-  const rawId = matchVideoPrefix[2].replace(/\/$/, '')
+  const handle = matchPrefix[1]
+  const kind = matchPrefix[2]
+  const rawId = matchPrefix[3].replace(/\/$/, '')
 
   if (!/^\d{10,25}$/.test(rawId)) {
     return { ok: false, reason: 'bad_id' }
@@ -78,6 +80,7 @@ export function parseTikTokUrl(input) {
     ok: true,
     id: rawId,
     handle,
+    kind,
   }
 }
 
@@ -95,6 +98,7 @@ export function sanitizeVideos(raw) {
 
     const id = typeof item.id === 'string' ? item.id.trim() : ''
     const handle = typeof item.handle === 'string' ? item.handle.trim() : ''
+    const kind = item.kind === 'photo' ? 'photo' : 'video'
 
     if (!/^\d{10,25}$/.test(id)) continue
     if (!/^[A-Za-z0-9._]{2,32}$/.test(handle)) continue
@@ -106,6 +110,7 @@ export function sanitizeVideos(raw) {
       provider: 'tiktok',
       id,
       handle,
+      kind,
     })
 
     if (sanitized.length >= MAX_VIDEOS_PER_ITEM) {
@@ -132,7 +137,7 @@ export function buildPlayerSrc(id) {
   return `https://www.tiktok.com/player/v1/${id}?${params.toString()}`
 }
 
-export function buildWatchUrl({ id, handle } = {}) {
+export function buildWatchUrl({ id, handle, kind = 'video' } = {}) {
   if (typeof id !== 'string' || !/^\d{10,25}$/.test(id)) {
     return null
   }
@@ -141,5 +146,6 @@ export function buildWatchUrl({ id, handle } = {}) {
     return null
   }
 
-  return `https://www.tiktok.com/@${handle}/video/${id}`
+  const postKind = kind === 'photo' ? 'photo' : 'video'
+  return `https://www.tiktok.com/@${handle}/${postKind}/${id}`
 }

@@ -19,6 +19,8 @@ import AdminHistory from './AdminHistory'
 import formatCurrency from '../../utils/formatCurrency'
 import { SkeletonRow } from '../layout/Skeletons'
 import { db } from '../../firebase'
+import { sendDynamicEmail } from '../../utils/emailService'
+import { generateReminderHTML } from '../../utils/emailTemplates'
 import {
   BEAD_BACKGROUNDS,
   BEAD_PRODUCTS_COLLECTION,
@@ -27,9 +29,26 @@ import {
   SALON_BACKGROUNDS,
   SALON_STYLES_COLLECTION,
 } from '../../constants/catalog'
-import { sendDynamicEmail } from '../../utils/emailService'
-import { generateReminderHTML } from '../../utils/emailTemplates'
-import { AlertTriangle, Video } from 'lucide-react'
+import {
+  AlertTriangle,
+  Archive,
+  Bell,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Download,
+  Image,
+  Info,
+  LayoutDashboard,
+  Moon,
+  PackageCheck,
+  Pencil,
+  ShieldCheck,
+  Sun,
+  Trash2,
+  Video,
+  X,
+} from 'lucide-react'
 import VideoLinksField from './VideoLinksField'
 import { sanitizeVideos } from '../../utils/tiktok'
 import { formatPriceRange, normalizePriceInput } from '../../utils/pricingUtils'
@@ -166,14 +185,24 @@ function InventoryQuickEditModal({
   const isOpen = Boolean(editForm.id)
 
   return (
-    <div className={`overlay${isOpen ? ' open' : ''}`}>
+    <div
+      className={`overlay${isOpen ? ' open' : ''}`}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="inventoryQuickEditTitle"
+    >
       <div className="sheet quick-edit-sheet">
         <div className="sheet-header">
-          <h2>
+          <h2 id="inventoryQuickEditTitle">
             {editForm.type === 'salon' ? 'Edit Hair Style' : 'Edit Bead Product'}
           </h2>
-          <button className="close-btn" onClick={onClose} type="button">
-            ✕
+          <button
+            className="close-btn"
+            onClick={onClose}
+            type="button"
+            aria-label="Close edit modal"
+          >
+            <X size={18} />
           </button>
         </div>
 
@@ -297,6 +326,19 @@ function InventoryQuickEditModal({
               }
               idPrefix="inventory-edit-video"
             />
+
+            {editForm.videos?.length > 0 &&
+            !editForm.image &&
+            (!editForm.images || editForm.images.length === 0) ? (
+              <div className="a-hint-box" role="status">
+                <Info size={14} className="a-hint-icon" />
+                <span>
+                  <strong>Cover photo recommended:</strong> You've attached a
+                  TikTok post. Adding a cover photo ensures customers on slow
+                  networks see an instant preview before playing.
+                </span>
+              </div>
+            ) : null}
 
             {feedback ? (
               <p
@@ -1206,26 +1248,37 @@ function AdminView({
         <div className="admin-logo">Knot Just — Command Center</div>
         <div className="admin-nav-right">
           <button className="a-btn tour-theme-btn" onClick={onToggleTheme}>
-            {theme === 'dark' ? '☀️' : '🌙'} Theme
+            {theme === 'dark' ? (
+              <Sun size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+            ) : (
+              <Moon size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+            )}{' '}
+            Theme
           </button>
           <button className="a-btn tour-security-btn" onClick={() => setIsSecurityOpen(true)}>
-            🔐 Security
+            <ShieldCheck size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} /> Security
           </button>
           <button className="a-btn tour-walkthrough-btn" onClick={startTour}>
-            ℹ️ Walkthrough
+            <Info size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} /> Walkthrough
           </button>
           <button className="a-btn tour-dashboard-btn" onClick={() => handleToggleViewMode('dashboard')} style={{
             opacity: viewMode === 'dashboard' ? 1 : 0.6,
           }}>
-            📊 Dashboard
+            <LayoutDashboard size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} /> Dashboard
           </button>
           <button className="a-btn tour-history-btn" onClick={() => handleToggleViewMode('history')} style={{
             opacity: viewMode === 'history' ? 1 : 0.6,
           }}>
-            🗄️ History
+            <Archive size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} /> History
           </button>
           <button className="a-btn tour-gallery-btn" onClick={handleToggleMode}>
-            {isGallery ? '← Dashboard' : '🖼️ Asset Gallery'}
+            {isGallery ? (
+              '← Dashboard'
+            ) : (
+              <>
+                <Image size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} /> Asset Gallery
+              </>
+            )}
           </button>
           <button className="a-btn danger tour-exit-btn" onClick={onSignOut}>
             ← Exit Admin
@@ -1461,6 +1514,16 @@ function AdminView({
                   }
                   idPrefix="salon-video"
                 />
+                {salonForm.videos.length > 0 && !salonForm.assetUrl ? (
+                  <div className="a-hint-box" role="status">
+                    <Info size={14} className="a-hint-icon" />
+                    <span>
+                      <strong>Cover photo recommended:</strong> You've attached a
+                      TikTok post. Adding a cover photo ensures customers on
+                      slow networks see an instant preview before playing.
+                    </span>
+                  </div>
+                ) : null}
                 <div className="a-fg full">
                   <button className="a-add-btn" type="submit">
                     ＋ Add Hair Style
@@ -1511,7 +1574,7 @@ function AdminView({
                           type="button"
                           aria-label={`Edit ${item.name}`}
                         >
-                          ✎
+                          <Pencil size={14} />
                         </button>
                         <button
                           className="a-del"
@@ -1519,7 +1582,7 @@ function AdminView({
                           type="button"
                           aria-label={`Delete ${item.name}`}
                         >
-                          ✕
+                          <Trash2 size={14} />
                         </button>
                       </div>
                     </div>
@@ -1638,6 +1701,17 @@ function AdminView({
                     }
                     idPrefix="bead-video"
                   />
+                  {beadForm.videos?.length > 0 &&
+                  (!beadForm.images || beadForm.images.length === 0) ? (
+                    <div className="a-hint-box" role="status">
+                      <Info size={14} className="a-hint-icon" />
+                      <span>
+                        <strong>Cover photo recommended:</strong> You've attached a
+                        TikTok post. Adding a cover photo ensures customers on slow
+                        networks see an instant preview before playing.
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
                 <div className="a-group full">
                   <h4 className="a-group-title">Pricing & Stock</h4>
@@ -1756,7 +1830,7 @@ function AdminView({
                           type="button"
                           aria-label={`Edit ${item.name}`}
                         >
-                          ✎
+                          <Pencil size={14} />
                         </button>
                         <button
                           className="a-del"
@@ -1764,7 +1838,7 @@ function AdminView({
                           type="button"
                           aria-label={`Delete ${item.name}`}
                         >
-                          ✕
+                          <Trash2 size={14} />
                         </button>
                       </div>
                     </div>
@@ -1832,21 +1906,21 @@ function AdminView({
                               type="button"
                               onClick={() => handleBookingStatus(item.id, 'confirmed')}
                             >
-                              ✓ Confirm
+                              <Check size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} /> Confirm
                             </button>
                             <button
                               className="confirm-btn cb-decline"
                               type="button"
                               onClick={() => handleBookingStatus(item.id, 'declined')}
                             >
-                              ✕ Decline
+                              <X size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} /> Decline
                             </button>
                             <button
                               className="confirm-btn"
                               type="button"
                               onClick={() => handleReminder(item, 'booking')}
                             >
-                              🔔 Remind
+                              <Bell size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} /> Remind
                             </button>
                           </div>
                         ) : null}
@@ -1900,14 +1974,14 @@ function AdminView({
                             type="button"
                             onClick={() => handleOrderStatus(item.id, 'fulfilled')}
                           >
-                            📦 Mark Fulfilled
+                            <PackageCheck size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} /> Mark Fulfilled
                           </button>
                           <button
                             className="confirm-btn"
                             type="button"
                             onClick={() => handleReminder(item, 'order')}
                           >
-                            🔔 Remind
+                            <Bell size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} /> Remind
                           </button>
                         </div>
                       ) : null}
@@ -1928,6 +2002,9 @@ function AdminView({
           className="overlay open"
           onClick={() => setPreviewPhoto(null)}
           style={{ zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="previewPhotoTitle"
         >
           <div
             className="sheet"
@@ -1935,8 +2012,15 @@ function AdminView({
             style={{ maxWidth: '600px', width: '90%', height: 'auto', maxHeight: '90vh', padding: '1.5rem', background: 'var(--bg-color)', borderRadius: '12px', display: 'flex', flexDirection: 'column' }}
           >
             <div className="sheet-header">
-              <h2>Reference Photo</h2>
-              <button className="close-btn" onClick={() => setPreviewPhoto(null)}>✕</button>
+              <h2 id="previewPhotoTitle">Reference Photo</h2>
+              <button
+                className="close-btn"
+                onClick={() => setPreviewPhoto(null)}
+                type="button"
+                aria-label="Close photo preview"
+              >
+                <X size={18} />
+              </button>
             </div>
             <div style={{ flex: 1, overflow: 'hidden', display: 'flex', justifyContent: 'center', margin: '1rem 0' }}>
               <img
@@ -1953,7 +2037,7 @@ function AdminView({
               className="btn btn-primary"
               style={{ textAlign: 'center', textDecoration: 'none' }}
             >
-              📥 Download / View Full Image
+              <Download size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} /> Download / View Full Image
             </a>
           </div>
         </div>

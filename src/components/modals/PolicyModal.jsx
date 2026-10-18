@@ -1,11 +1,54 @@
+import { useEffect } from 'react'
+import { X } from 'lucide-react'
+
 function PolicyModal({ isOpen, onClose }) {
+  // Escape key handler
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.stopPropagation()
+        onClose?.()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
+  // Scroll lock with cleanup
+  useEffect(() => {
+    if (!isOpen) return
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = originalOverflow
+    }
+  }, [isOpen])
+
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget) {
+      onClose?.()
+    }
+  }
+
   return (
-    <div className={`overlay policy-overlay${isOpen ? ' open' : ''}`}>
-      <div className="sheet policy-sheet">
+    <div
+      className={`overlay policy-overlay${isOpen ? ' open' : ''}`}
+      onClick={handleBackdropClick}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="policyModalTitle"
+    >
+      <div className="sheet policy-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="sheet-header">
-          <h2>Booking & Shop Policies</h2>
-          <button className="close-btn" onClick={onClose} type="button">
-            ✕
+          <h2 id="policyModalTitle">Booking & Shop Policies</h2>
+          <button
+            className="close-btn"
+            onClick={onClose}
+            type="button"
+            aria-label="Close policies modal"
+          >
+            <X size={18} />
           </button>
         </div>
 

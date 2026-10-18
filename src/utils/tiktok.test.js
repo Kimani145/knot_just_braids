@@ -40,6 +40,27 @@ test('parseTikTokUrl - ACCEPT corpus', () => {
     ok: true,
     id: '7312345678901234567',
     handle: 'knotjust',
+    kind: 'video',
+  })
+
+  // Standard photo url
+  const resPhoto = parseTikTokUrl('https://www.tiktok.com/@knotjust/photo/7312345678901234567')
+  assert.deepEqual(resPhoto, {
+    ok: true,
+    id: '7312345678901234567',
+    handle: 'knotjust',
+    kind: 'photo',
+  })
+
+  // Photo url with query parameters
+  const resPhotoQuery = parseTikTokUrl(
+    'https://www.tiktok.com/@knotjust/photo/7312345678901234567?is_from_webapp=1',
+  )
+  assert.deepEqual(resPhotoQuery, {
+    ok: true,
+    id: '7312345678901234567',
+    handle: 'knotjust',
+    kind: 'photo',
   })
 
   // With query parameters
@@ -50,6 +71,7 @@ test('parseTikTokUrl - ACCEPT corpus', () => {
     ok: true,
     id: '7312345678901234567',
     handle: 'knotjust',
+    kind: 'video',
   })
 
   // Trailing slash
@@ -58,6 +80,7 @@ test('parseTikTokUrl - ACCEPT corpus', () => {
     ok: true,
     id: '7312345678901234567',
     handle: 'knotjust',
+    kind: 'video',
   })
 
   // tiktok.com without www and dot/underscore handle
@@ -66,6 +89,7 @@ test('parseTikTokUrl - ACCEPT corpus', () => {
     ok: true,
     id: '7312345678901234567',
     handle: 'a.b_c',
+    kind: 'video',
   })
 
   // Uppercase scheme/host
@@ -74,6 +98,7 @@ test('parseTikTokUrl - ACCEPT corpus', () => {
     ok: true,
     id: '7312345678901234567',
     handle: 'knotjust',
+    kind: 'video',
   })
 
   // Surrounding whitespace and newlines
@@ -84,6 +109,7 @@ test('parseTikTokUrl - ACCEPT corpus', () => {
     ok: true,
     id: '7312345678901234567',
     handle: 'knotjust',
+    kind: 'video',
   })
 })
 
@@ -158,9 +184,9 @@ test('parseTikTokUrl - REJECT corpus', () => {
     { ok: false, reason: 'host_not_allowed' },
   )
 
-  // Unsupported paths (/photo/, root, profile only)
+  // Unsupported paths (/music/, root, profile only)
   assert.deepEqual(
-    parseTikTokUrl('https://www.tiktok.com/@knotjust/photo/7312345678901234567'),
+    parseTikTokUrl('https://www.tiktok.com/@knotjust/music/7312345678901234567'),
     { ok: false, reason: 'unsupported_path' },
   )
   assert.deepEqual(parseTikTokUrl('https://www.tiktok.com/'), {
@@ -228,18 +254,18 @@ test('sanitizeVideos handles edge cases, dropping invalid and deduping', () => {
     [],
   )
 
-  // Valid videos, deduping and max 2
+  // Valid videos and photo posts, deduping and max 2
   const rawList = [
-    { provider: 'tiktok', id: '7312345678901234567', handle: 'knotjust' },
-    { provider: 'tiktok', id: '7312345678901234567', handle: 'knotjust' }, // dup
-    { provider: 'tiktok', id: '7312345678901234568', handle: 'knotjust2' },
-    { provider: 'tiktok', id: '7312345678901234569', handle: 'knotjust3' }, // exceeds max 2
+    { provider: 'tiktok', id: '7312345678901234567', handle: 'knotjust', kind: 'video' },
+    { provider: 'tiktok', id: '7312345678901234567', handle: 'knotjust', kind: 'video' }, // dup
+    { provider: 'tiktok', id: '7312345678901234568', handle: 'knotjust2', kind: 'photo' },
+    { provider: 'tiktok', id: '7312345678901234569', handle: 'knotjust3', kind: 'video' }, // exceeds max 2
   ]
   const sanitized = sanitizeVideos(rawList)
   assert.equal(sanitized.length, 2)
   assert.deepEqual(sanitized, [
-    { provider: 'tiktok', id: '7312345678901234567', handle: 'knotjust' },
-    { provider: 'tiktok', id: '7312345678901234568', handle: 'knotjust2' },
+    { provider: 'tiktok', id: '7312345678901234567', handle: 'knotjust', kind: 'video' },
+    { provider: 'tiktok', id: '7312345678901234568', handle: 'knotjust2', kind: 'photo' },
   ])
 })
 
@@ -255,9 +281,16 @@ test('buildPlayerSrc generates official documented embed URL with query params',
   assert.equal(buildPlayerSrc(''), null)
 })
 
-test('buildWatchUrl generates standard watch link', () => {
-  const watchUrl = buildWatchUrl({ id: '7312345678901234567', handle: 'knotjust' })
-  assert.equal(watchUrl, 'https://www.tiktok.com/@knotjust/video/7312345678901234567')
+test('buildWatchUrl generates standard watch link honoring kind', () => {
+  const videoWatch = buildWatchUrl({ id: '7312345678901234567', handle: 'knotjust' })
+  assert.equal(videoWatch, 'https://www.tiktok.com/@knotjust/video/7312345678901234567')
+
+  const photoWatch = buildWatchUrl({
+    id: '7312345678901234567',
+    handle: 'knotjust',
+    kind: 'photo',
+  })
+  assert.equal(photoWatch, 'https://www.tiktok.com/@knotjust/photo/7312345678901234567')
 
   assert.equal(buildWatchUrl({ id: 'invalid', handle: 'knotjust' }), null)
   assert.equal(buildWatchUrl({ id: '7312345678901234567', handle: 'invalid handle!' }), null)

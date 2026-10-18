@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { ChevronLeft, ChevronRight, Images, X } from 'lucide-react'
 import { formatPriceRange } from '../../utils/pricingUtils.js'
+import { buildWatchUrl } from '../../utils/tiktok.js'
+import MediaPlaceholder from '../common/MediaPlaceholder'
 import TikTokPlayer from './TikTokPlayer'
 
 function ProductQuickViewContent({
@@ -12,6 +15,7 @@ function ProductQuickViewContent({
   onAddToCart,
   onInquire,
   closeBtnRef,
+  sheetRef,
 }) {
   const images = useMemo(() => {
     if (!item) return []
@@ -40,6 +44,9 @@ function ProductQuickViewContent({
 
   const [activeIndex, setActiveIndex] = useState(0)
   const [touchStartX, setTouchStartX] = useState(0)
+
+  const activeSlide = slides[activeIndex]
+  const isVideoSlide = activeSlide?.type === 'video'
 
   const pricingType = item?.pricingType === 'range' ? 'range' : 'fixed'
   const isRangeProduct = !isSalon && pricingType === 'range'
@@ -91,7 +98,11 @@ function ProductQuickViewContent({
   }
 
   return (
-    <div className="sheet quick-view-sheet">
+    <div
+      ref={sheetRef}
+      className="sheet quick-view-sheet"
+      onClick={(e) => e.stopPropagation()}
+    >
       <div className="sheet-header">
         <h2 id="quickViewTitle">
           {item.name}
@@ -116,11 +127,15 @@ function ProductQuickViewContent({
           type="button"
           aria-label="Close details"
         >
-          ✕
+          <X size={18} />
         </button>
       </div>
       <div className="quick-view-content">
-        <div className={`quick-view-carousel ${item.bg}`}>
+        <div
+          className={`quick-view-carousel ${item.bg || ''} ${
+            isVideoSlide ? 'carousel-video-mode' : 'carousel-image-mode'
+          }`}
+        >
           {slides.length ? (
             <>
               <div
@@ -131,7 +146,9 @@ function ProductQuickViewContent({
               >
                 {slides.map((slide, index) => (
                   <div
-                    className={`quick-view-slide${slide.type === 'video' ? ' quick-view-video-slide' : ''}`}
+                    className={`quick-view-slide${
+                      slide.type === 'video' ? ' quick-view-video-slide' : ''
+                    }`}
                     key={slide.id}
                   >
                     {slide.type === 'image' ? (
@@ -156,7 +173,7 @@ function ProductQuickViewContent({
                     onClick={goPrev}
                     aria-label="Previous slide"
                   >
-                    ‹
+                    <ChevronLeft size={22} />
                   </button>
                   <button
                     className="quick-view-nav next"
@@ -164,30 +181,68 @@ function ProductQuickViewContent({
                     onClick={goNext}
                     aria-label="Next slide"
                   >
-                    ›
+                    <ChevronRight size={22} />
                   </button>
                   <div className="quick-view-dots">
-                    {slides.map((slide, index) => (
-                      <button
-                        key={`dot-${slide.id}`}
-                        className={`quick-view-dot${slide.type === 'video' ? ' video-dot' : ''}${index === activeIndex ? ' active' : ''}`}
-                        type="button"
-                        onClick={() => setActiveIndex(index)}
-                        aria-label={slide.type === 'video' ? `Go to video ${index + 1}` : `Go to slide ${index + 1}`}
-                      >
-                        {slide.type === 'video' ? (
-                          <span className="dot-play-icon" aria-hidden="true">▶</span>
-                        ) : null}
-                      </button>
-                    ))}
+                    {slides.map((slide, index) => {
+                      const isPhoto = slide.video?.kind === 'photo'
+                      return (
+                        <button
+                          key={`dot-${slide.id}`}
+                          className={`quick-view-dot${
+                            slide.type === 'video' ? ' video-dot' : ''
+                          }${index === activeIndex ? ' active' : ''}`}
+                          type="button"
+                          onClick={() => setActiveIndex(index)}
+                          aria-label={
+                            slide.type === 'video'
+                              ? isPhoto
+                                ? `Go to TikTok photo post ${index + 1}`
+                                : `Go to TikTok video ${index + 1}`
+                              : `Go to slide ${index + 1}`
+                          }
+                        >
+                          {slide.type === 'video' ? (
+                            isPhoto ? (
+                              <Images
+                                size={11}
+                                className="dot-photo-icon"
+                                aria-hidden="true"
+                              />
+                            ) : (
+                              <span className="dot-play-icon" aria-hidden="true">
+                                ▶
+                              </span>
+                            )
+                          ) : null}
+                        </button>
+                      )
+                    })}
                   </div>
                 </>
               ) : null}
             </>
           ) : (
-            <div className="quick-view-emoji">{item.emoji}</div>
+            <MediaPlaceholder item={item} isSalon={isSalon} />
           )}
         </div>
+
+        {/* Video footer row outside the carousel to prevent clipping */}
+        {isVideoSlide && activeSlide?.video ? (
+          <div className="quick-view-video-footer">
+            <a
+              href={buildWatchUrl(activeSlide.video)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="tiktok-watch-link"
+            >
+              {activeSlide.video.kind === 'photo'
+                ? 'View Photos on TikTok ↗'
+                : 'Watch on TikTok ↗'}
+            </a>
+          </div>
+        ) : null}
+
         <p className="quick-view-price">{showPrice}</p>
         <p className="quick-view-desc">{item.desc}</p>
         <button
@@ -222,6 +277,7 @@ function ProductQuickView({
   const [prevItem, setPrevItem] = useState(item)
   const openerRef = useRef(null)
   const closeBtnRef = useRef(null)
+  const sheetRef = useRef(null)
 
   if (item && item !== prevItem) {
     setPrevItem(item)
@@ -230,6 +286,7 @@ function ProductQuickView({
 
   const activeItem = item || cachedItem
 
+  // Focus management: save opener and focus close button on open; restore on close
   useEffect(() => {
     if (isOpen) {
       openerRef.current = document.activeElement
@@ -240,15 +297,68 @@ function ProductQuickView({
     }
   }, [isOpen])
 
+  // Focus trap inside the modal sheet
   useEffect(() => {
     if (!isOpen) return
-    const originalOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+
+    const handleTabKey = (e) => {
+      if (e.key !== 'Tab' || !sheetRef.current) return
+
+      const focusableEls = sheetRef.current.querySelectorAll(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )
+
+      if (focusableEls.length === 0) return
+
+      const firstEl = focusableEls[0]
+      const lastEl = focusableEls[focusableEls.length - 1]
+
+      if (e.shiftKey) {
+        if (document.activeElement === firstEl) {
+          e.preventDefault()
+          lastEl.focus()
+        }
+      } else {
+        if (document.activeElement === lastEl) {
+          e.preventDefault()
+          firstEl.focus()
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleTabKey)
+    return () => window.removeEventListener('keydown', handleTabKey)
+  }, [isOpen])
+
+  // Inactivity of background: set inert on #root while open
+  useEffect(() => {
+    if (!isOpen) return
+    const root = document.getElementById('root')
+    if (!root) return
+    const prevInert = root.inert
+    root.inert = true
     return () => {
-      document.body.style.overflow = originalOverflow
+      root.inert = prevInert
     }
   }, [isOpen])
 
+  // Scroll lock with layout-shift prevention and guaranteed cleanup
+  useEffect(() => {
+    if (!isOpen) return
+    const originalOverflow = document.body.style.overflow
+    const originalPaddingRight = document.body.style.paddingRight
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`
+    }
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = originalOverflow
+      document.body.style.paddingRight = originalPaddingRight
+    }
+  }, [isOpen])
+
+  // Escape key handler
   useEffect(() => {
     if (!isOpen) return
     const handleKeyDown = (event) => {
@@ -287,6 +397,7 @@ function ProductQuickView({
           onAddToCart={onAddToCart}
           onInquire={onInquire}
           closeBtnRef={closeBtnRef}
+          sheetRef={sheetRef}
         />
       ) : null}
     </div>,

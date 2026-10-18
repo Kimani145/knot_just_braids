@@ -1,3 +1,4 @@
+import { AlertTriangle } from 'lucide-react'
 import './UrgentAlerts.css'
 
 /**
@@ -38,9 +39,11 @@ function UrgentAlerts({ bookings, orders }) {
       : 'orders'
 
   return (
-    <div className="urgent-alerts-banner">
+    <div className="urgent-alerts-banner" role="status">
       <div className="urgent-banner-content">
-        <span className="urgent-icon">⚠️</span>
+        <span className="urgent-icon" aria-hidden="true">
+          <AlertTriangle size={18} />
+        </span>
         <span className="urgent-text">
           <strong>Action Required:</strong> You have <strong>{totalUrgent}</strong> {itemType} due
           within 24 hours.

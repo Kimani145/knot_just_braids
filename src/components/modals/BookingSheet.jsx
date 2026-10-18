@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore'
+import { CalendarCheck, Mail, X } from 'lucide-react'
 import { db } from '../../firebase'
 import { BOOKINGS_COLLECTION } from '../../constants/catalog'
 import PolicyModal from './PolicyModal'
@@ -40,7 +41,7 @@ function BookingSheet({ isOpen, styleName, onClose }) {
     return new Date().toISOString().split('T')[0]
   }, [])
 
-  const resetSheet = () => {
+  const resetSheet = useCallback(() => {
     setForm(createInitialForm())
     setIsSuccess(false)
     setSubmitted(null)
@@ -56,12 +57,12 @@ function BookingSheet({ isOpen, styleName, onClose }) {
     })
     setReferencePhotos([])
     setPhotoPreviews([])
-  }
+  }, [photoPreviews])
 
-  const handleCloseSheet = () => {
+  const handleCloseSheet = useCallback(() => {
     resetSheet()
     onClose?.()
-  }
+  }, [resetSheet, onClose])
 
   const handleChange = (field) => (event) => {
     setForm((prev) => ({ ...prev, [field]: event.target.value }))
@@ -261,19 +262,62 @@ function BookingSheet({ isOpen, styleName, onClose }) {
     }
   }
 
+  // Escape key handler
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.stopPropagation()
+        handleCloseSheet()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, handleCloseSheet])
+
+  // Scroll lock with cleanup
+  useEffect(() => {
+    if (!isOpen) return
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = originalOverflow
+    }
+  }, [isOpen])
+
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget) {
+      handleCloseSheet()
+    }
+  }
+
   return (
-    <div className={`overlay${isOpen ? ' open' : ''}`} id="bookingOverlay">
-      <div className="sheet">
+    <div
+      className={`overlay${isOpen ? ' open' : ''}`}
+      id="bookingOverlay"
+      onClick={handleBackdropClick}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="bookingSheetTitle"
+    >
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
         <div className="sheet-header">
           <h2 id="bookingSheetTitle">Request Appointment</h2>
-          <button className="close-btn" onClick={handleCloseSheet} type="button">
-            ✕
+          <button
+            className="close-btn"
+            onClick={handleCloseSheet}
+            type="button"
+            aria-label="Close booking sheet"
+          >
+            <X size={18} />
           </button>
         </div>
         <div id="bookingContent">
           {isSuccess && submitted ? (
             <div className="success-state">
-              <div className="icon">✅</div>
+              <div className="icon" aria-hidden="true">
+                <CalendarCheck size={48} />
+              </div>
               <h3>Booking Requested!</h3>
               <p>
                 Hi {submitted.name}! Your request for{' '}
@@ -433,7 +477,11 @@ function BookingSheet({ isOpen, styleName, onClose }) {
                 )}
               </div>
               <div className="note">
-                📧 You'll receive an automated email on submission, and a final
+                <Mail
+                  size={14}
+                  style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }}
+                />
+                You'll receive an automated email on submission, and a final
                 confirmation with style, date & time once approved.
               </div>
               <div className="fg policy-agreement">
@@ -466,7 +514,7 @@ function BookingSheet({ isOpen, styleName, onClose }) {
                 </p>
               ) : null}
               <button className="btn btn-primary btn-full" type="submit" disabled={isSubmitting}>
-                {isSubmitting ? 'Submitting Request...' : '✨ Request Appointment'}
+                {isSubmitting ? 'Submitting Request...' : 'Request Appointment →'}
               </button>
             </form>
           )}

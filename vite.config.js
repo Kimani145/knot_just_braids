@@ -24,6 +24,9 @@ export default defineConfig({
           ) {
             return 'vendor-react'
           }
+          if (id.includes('node_modules/@sentry')) {
+            return 'sentry'
+          }
           if (id.includes('node_modules/lucide-react')) {
             return 'vendor-icons'
           }

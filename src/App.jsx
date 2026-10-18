@@ -12,6 +12,8 @@ import BookingSheet from './components/modals/BookingSheet'
 import CartSheet from './components/modals/CartSheet'
 import CheckoutSheet from './components/modals/CheckoutSheet'
 import { SkeletonRow } from './components/layout/Skeletons'
+import ConsentBanner from './components/common/ConsentBanner'
+import { trackPageView } from './services/analytics'
 import { auth, db } from './firebase'
 
 const AdminLogin = lazy(() => import('./components/admin/AdminLogin'))
@@ -164,10 +166,13 @@ function App() {
 
   useEffect(() => {
     const handlePop = () => {
-      setCurrentView(getViewFromPath())
+      const view = getViewFromPath()
+      setCurrentView(view)
+      trackPageView(window.location.pathname, view)
     }
 
     window.addEventListener('popstate', handlePop)
+    trackPageView(window.location.pathname, getViewFromPath())
     return () => window.removeEventListener('popstate', handlePop)
   }, [])
 
@@ -314,6 +319,7 @@ function App() {
     window.history.pushState({}, '', path)
     setCurrentView(view)
     window.scrollTo({ top: 0 })
+    trackPageView(path, view)
   }
 
   const leaveAdminRoute = () => {
@@ -497,6 +503,9 @@ function App() {
         cart={cart}
         onClose={handleCloseCheckout}
         onComplete={handleOrderComplete}
+      />
+      <ConsentBanner
+        onOpenPrivacyPolicy={() => handleNavigate('/privacy', 'privacy')}
       />
       <Toaster position="top-center" richColors />
     </>

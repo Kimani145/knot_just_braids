@@ -10,6 +10,8 @@ import {
 } from '../../utils/clientDetailsStorage'
 import { sendDynamicEmail } from '../../utils/emailService'
 import { generateBookingHTML } from '../../utils/emailTemplates'
+import { compressImage } from '../../utils/imageCompressor'
+import { uploadImageWithFallback } from '../../services/api'
 import { toast } from 'sonner'
 
 const createInitialForm = () => ({
@@ -128,39 +130,24 @@ function BookingSheet({ isOpen, styleName, onClose }) {
       hasPhone: Boolean(trimmedPhone),
     })
     
-    let referencePhotoUrls = [];
+    let referencePhotoUrls = []
     if (referencePhotos.length > 0) {
-      console.info('[BookingSheet] Uploading reference photos...');
+      console.info('[BookingSheet] Uploading reference photos...')
       try {
-        const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-        const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
-        
-        if (CLOUDINARY_CLOUD_NAME && CLOUDINARY_UPLOAD_PRESET) {
-          const uploadPromises = referencePhotos.map(async (photo) => {
-            const formData = new FormData();
-            formData.append('file', photo);
-            formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-            
-            const uploadRes = await fetch(
-              `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
-              { method: 'POST', body: formData }
-            );
-            
-            if (uploadRes.ok) {
-              const data = await uploadRes.json();
-              return data.secure_url;
-            } else {
-              console.error('[BookingSheet] Failed to upload a reference photo', await uploadRes.text());
-              return null;
-            }
-          });
+        const uploadPromises = referencePhotos.map(async (rawPhoto) => {
+          const photo = await compressImage(rawPhoto, { maxWidth: 1200, quality: 0.8 })
+          const result = await uploadImageWithFallback(photo, {
+            isReferencePhoto: true,
+            folder: 'knot_just/reference_photos',
+          })
+          return result?.secure_url || null
+        })
 
-          const results = await Promise.all(uploadPromises);
-          referencePhotoUrls = results.filter(url => url !== null);
-          console.info(`[BookingSheet] ${referencePhotoUrls.length} reference photo(s) uploaded successfully`);
-        }
+        const results = await Promise.all(uploadPromises)
+        referencePhotoUrls = results.filter((url) => url !== null)
+        console.info(`[BookingSheet] ${referencePhotoUrls.length} reference photo(s) uploaded successfully`)
       } catch (err) {
-        console.error('[BookingSheet] Error uploading reference photos', err);
+        console.error('[BookingSheet] Error uploading reference photos', err)
       }
     }
 

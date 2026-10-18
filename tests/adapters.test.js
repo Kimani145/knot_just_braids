@@ -109,3 +109,26 @@ describe('Server Adapters - HTTP Utils', () => {
     assert.equal(body.error.message, 'Invalid request item')
   })
 })
+
+describe('Client Services - extractCloudinaryPublicId', async () => {
+  const { extractCloudinaryPublicId } = await import('../src/services/api.js')
+
+  it('extracts publicId from versioned and unversioned Cloudinary URLs', () => {
+    assert.equal(
+      extractCloudinaryPublicId(
+        'https://res.cloudinary.com/cloud/image/upload/v1700000000/knot_just/catalog/anklet_blue.webp'
+      ),
+      'knot_just/catalog/anklet_blue'
+    )
+
+    assert.equal(
+      extractCloudinaryPublicId(
+        'https://res.cloudinary.com/cloud/image/upload/knot_just/reference_photos/photo1.jpg'
+      ),
+      'knot_just/reference_photos/photo1'
+    )
+
+    assert.equal(extractCloudinaryPublicId('https://example.com/not-cloudinary.png'), null)
+    assert.equal(extractCloudinaryPublicId(''), null)
+  })
+})

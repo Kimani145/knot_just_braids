@@ -10,7 +10,8 @@ import {
 } from 'firebase/firestore'
 import { AlertTriangle, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
-import { db } from '../../firebase'
+import { auth, db } from '../../firebase'
+import { deleteCloudinaryAsset, extractCloudinaryPublicId } from '../../services/api'
 import { ASSET_METADATA_COLLECTION } from '../../constants/catalog'
 import { SkeletonCard } from '../layout/Skeletons'
 
@@ -134,7 +135,23 @@ function AdminGallery({
     setIsDeleting(true)
     try {
       await deleteDoc(doc(db, ASSET_METADATA_COLLECTION, String(assetToDelete.id)))
-      toast.success(`"${assetToDelete.fileName}" metadata removed from library.`)
+
+      // Attempt physical Cloudinary deletion if public_id is available or extractable
+      const publicId =
+        assetToDelete.publicId || extractCloudinaryPublicId(assetToDelete.assetUrl)
+
+      if (publicId) {
+        try {
+          const authToken = await auth.currentUser?.getIdToken?.()
+          if (authToken) {
+            await deleteCloudinaryAsset(authToken, publicId)
+          }
+        } catch (cloudErr) {
+          console.warn('[AdminGallery] Cloudinary file deletion error:', cloudErr.message)
+        }
+      }
+
+      toast.success(`"${assetToDelete.fileName}" removed from library.`)
       setAssetToDelete(null)
     } catch (deleteError) {
       console.error('Failed to delete asset metadata:', deleteError)

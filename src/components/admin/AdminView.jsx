@@ -8,14 +8,19 @@ import {
   serverTimestamp,
   updateDoc,
 } from 'firebase/firestore'
-import AdminPanel from './AdminPanel'
 import StatsRow from './StatsRow'
-import ImageUploader from './ImageUploader'
 import AdminGallery from './AdminGallery'
 import SecurityDialog from './SecurityDialog'
 import ReminderModal from './ReminderModal'
 import UrgentAlerts from './UrgentAlerts'
 import AdminHistory from './AdminHistory'
+import CatalogLintBanner from './sections/CatalogLintBanner'
+import InventoryQuickEditModal from './sections/InventoryQuickEditModal'
+import SalonManager from './sections/SalonManager'
+import BeadManager from './sections/BeadManager'
+import BookingsManager from './sections/BookingsManager'
+import OrdersManager from './sections/OrdersManager'
+import PhotoPreviewModal from './sections/PhotoPreviewModal'
 import formatCurrency from '../../utils/formatCurrency'
 import { SkeletonRow } from '../layout/Skeletons'
 import { db } from '../../firebase'
@@ -30,28 +35,16 @@ import {
   SALON_STYLES_COLLECTION,
 } from '../../constants/catalog'
 import {
-  AlertTriangle,
   Archive,
-  Bell,
-  Check,
-  ChevronDown,
-  ChevronUp,
-  Download,
   Image,
   Info,
   LayoutDashboard,
   Moon,
-  PackageCheck,
-  Pencil,
   ShieldCheck,
   Sun,
-  Trash2,
-  Video,
-  X,
 } from 'lucide-react'
-import VideoLinksField from './VideoLinksField'
 import { sanitizeVideos } from '../../utils/tiktok'
-import { formatPriceRange, normalizePriceInput } from '../../utils/pricingUtils'
+import { normalizePriceInput } from '../../utils/pricingUtils'
 import { lintAllCatalogs } from '../../utils/catalogLint'
 
 const initialSalonForm = {
@@ -130,251 +123,6 @@ const normalizeWhatsappPhone = (phone) => {
   }
 
   return digits
-}
-
-function CatalogLintBanner({ warnings = [] }) {
-  const [isExpanded, setIsExpanded] = useState(false)
-  if (!warnings.length) return null
-
-  return (
-    <div className="catalog-lint-banner" role="region" aria-label="Catalog Health Issues">
-      <div className="catalog-lint-header" onClick={() => setIsExpanded((prev) => !prev)}>
-        <div className="catalog-lint-title">
-          <AlertTriangle size={18} className="catalog-lint-icon" />
-          <span>
-            <strong>Catalog Health:</strong> {warnings.length} {warnings.length === 1 ? 'issue' : 'issues'} detected
-          </span>
-        </div>
-        <button
-          type="button"
-          className="btn btn-outline btn-sm"
-          style={{ padding: '2px 8px', fontSize: '0.75rem' }}
-          onClick={(e) => {
-            e.stopPropagation()
-            setIsExpanded((prev) => !prev)
-          }}
-        >
-          {isExpanded ? 'Hide' : 'Review'}
-        </button>
-      </div>
-      {isExpanded ? (
-        <ul className="catalog-lint-list">
-          {warnings.map((warn) => (
-            <li key={warn.id} className="catalog-lint-item">
-              <span className={`catalog-lint-tag tag-${warn.catalogType}`}>
-                {warn.catalogType === 'salon' ? 'SALON' : 'BEADS'}
-              </span>
-              <span className="catalog-lint-msg">{warn.message}</span>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </div>
-  )
-}
-
-function InventoryQuickEditModal({
-  editForm,
-  feedback,
-  isSaving,
-  onChange,
-  onClose,
-  onSubmit,
-  onAssetUpload,
-}) {
-  const isOpen = Boolean(editForm.id)
-
-  return (
-    <div
-      className={`overlay${isOpen ? ' open' : ''}`}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="inventoryQuickEditTitle"
-    >
-      <div className="sheet quick-edit-sheet">
-        <div className="sheet-header">
-          <h2 id="inventoryQuickEditTitle">
-            {editForm.type === 'salon' ? 'Edit Hair Style' : 'Edit Bead Product'}
-          </h2>
-          <button
-            className="close-btn"
-            onClick={onClose}
-            type="button"
-            aria-label="Close edit modal"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {isOpen ? (
-          <form className="form-stack" onSubmit={onSubmit}>
-            <div className="note">
-              Updating <strong>{editForm.name}</strong>
-            </div>
-
-            <div className="fg">
-              <label>Pricing Type</label>
-              <div className="pricing-toggle">
-                <button
-                  type="button"
-                  className={`pricing-toggle-btn${editForm.pricingType === 'fixed' ? ' active' : ''}`}
-                  onClick={onChange('pricingType')}
-                  value="fixed"
-                >
-                  Fixed price
-                </button>
-                <button
-                  type="button"
-                  className={`pricing-toggle-btn${editForm.pricingType === 'range' ? ' active' : ''}`}
-                  onClick={onChange('pricingType')}
-                  value="range"
-                >
-                  Price range
-                </button>
-              </div>
-            </div>
-
-            <div className="fg">
-              <label>{editForm.pricingType === 'range' ? 'Minimum Price' : 'Price'}</label>
-              <input
-                type="text"
-                value={editForm.priceDisplay}
-                onChange={onChange('price')}
-                placeholder="Kshs 120"
-              />
-            </div>
-
-            {editForm.pricingType === 'range' ? (
-              <div className="fg">
-                <label>Maximum Price</label>
-                <input
-                  type="text"
-                  value={editForm.priceMaxDisplay}
-                  onChange={onChange('priceMax')}
-                  placeholder="Kshs 250"
-                />
-              </div>
-            ) : null}
-
-            <div className="fg">
-              <label>Variant (Optional)</label>
-              <input
-                type="text"
-                list="inventory-edit-variants"
-                value={editForm.variant || ''}
-                onChange={onChange('variant')}
-                placeholder="e.g. Hand-painted, Original finish"
-              />
-              <datalist id="inventory-edit-variants">
-                <option value="Hand-painted" />
-                <option value="Original finish" />
-                <option value="Natural" />
-                <option value="With extensions" />
-                <option value="Custom color" />
-              </datalist>
-            </div>
-
-            {editForm.type === 'salon' ? (
-              <div className="fg">
-                <label>Duration</label>
-                <input
-                  type="text"
-                  value={editForm.duration}
-                  onChange={onChange('duration')}
-                  placeholder="5–7 hrs"
-                />
-              </div>
-            ) : (
-              <div className="fg">
-                <label>Stock Quantity</label>
-                <input
-                  type="number"
-                  value={editForm.stock}
-                  onChange={onChange('stock')}
-                  placeholder="10"
-                />
-              </div>
-            )}
-
-            <div className="fg">
-              <label>Description</label>
-              <textarea
-                value={editForm.desc}
-                onChange={onChange('desc')}
-                placeholder="Short product or style description"
-              />
-            </div>
-
-            <div className="fg">
-              <label>{editForm.type === 'salon' ? 'Style Image' : 'Product Images'}</label>
-              <ImageUploader
-                onUpload={(asset) => onAssetUpload?.(asset, editForm.type)}
-                selectedAsset={editForm.image}
-                selectedAssets={editForm.images}
-                allowMultiple={editForm.type === 'beads'}
-              />
-            </div>
-
-            <VideoLinksField
-              videos={editForm.videos}
-              onChange={(nextVideos) =>
-                onChange('videos')({ target: { value: nextVideos } })
-              }
-              pendingUrl={editForm.pendingVideoUrl}
-              onPendingUrlChange={(nextUrl) =>
-                onChange('pendingVideoUrl')({ target: { value: nextUrl } })
-              }
-              idPrefix="inventory-edit-video"
-            />
-
-            {editForm.videos?.length > 0 &&
-            !editForm.image &&
-            (!editForm.images || editForm.images.length === 0) ? (
-              <div className="a-hint-box" role="status">
-                <Info size={14} className="a-hint-icon" />
-                <span>
-                  <strong>Cover photo recommended:</strong> You've attached a
-                  TikTok post. Adding a cover photo ensures customers on slow
-                  networks see an instant preview before playing.
-                </span>
-              </div>
-            ) : null}
-
-            {feedback ? (
-              <p
-                className={`admin-auth-feedback ${
-                  feedback.type === 'error'
-                    ? 'admin-auth-feedback-error'
-                    : 'admin-auth-feedback-success'
-                }`}
-              >
-                {feedback.message}
-              </p>
-            ) : null}
-
-            <div className="security-actions">
-              <button
-                className="btn btn-primary"
-                type="submit"
-                disabled={isSaving}
-                style={{
-                  background:
-                    editForm.type === 'salon'
-                      ? 'var(--salon-accent)'
-                      : 'var(--bead-accent)',
-                }}
-              >
-                {isSaving ? 'Saving...' : 'Save Changes'}
-              </button>
-              <button className="btn btn-outline" type="button" onClick={onClose}>
-                Cancel
-              </button>
-            </div>
-          </form>
-        ) : null}
-      </div>
-    </div>
-  )
 }
 
 const tourSteps = [
@@ -1185,27 +933,6 @@ function AdminView({
     handleOpenReminder(item, type)
   }
 
-  const renderGallerySelection = (formType, asset) => {
-    if (!asset?.assetUrl || asset.source !== 'gallery') return null
-
-    return (
-      <div className="selected-asset-card">
-        <img src={asset.assetUrl} alt={asset.fileName || 'Selected asset'} />
-        <div className="selected-asset-copy">
-          <strong>{asset.fileName || 'Selected gallery asset'}</strong>
-          <span>{asset.internalNote || 'This asset will be used when you publish.'}</span>
-        </div>
-        <button
-          className="btn btn-outline btn-sm"
-          type="button"
-          onClick={() => handleClearSelectedAsset(formType)}
-        >
-          Clear
-        </button>
-      </div>
-    )
-  }
-
   return (
     <>
       <Joyride
@@ -1366,682 +1093,77 @@ function AdminView({
 
           <div className="admin-body">
             <CatalogLintBanner warnings={catalogWarnings} />
-            <AdminPanel
-              title="Hair Styles Gallery"
-              tagLabel="SALON"
-              tagClass="tag-salon"
-              panelId="admin-salon-panel"
-            >
-              <form
-                className="admin-form tour-add-hair-form"
-                style={{ marginBottom: '1rem' }}
-                onSubmit={handleAddSalon}
-              >
-                <div className="a-fg">
-                  <label className="a-label">Style Name</label>
-                  <input
-                    className={salonFormErrors.name ? 'a-input invalid' : 'a-input'}
-                    placeholder="Knotless Braids"
-                    value={salonForm.name}
-                    onChange={handleSalonChange('name')}
-                    onBlur={handleSalonFieldBlur('name')}
-                  />
-                  {salonFormErrors.name ? (
-                    <span className="a-error">{salonFormErrors.name}</span>
-                  ) : null}
-                </div>
-                <div className="a-fg">
-                  <label className="a-label">Variant (Optional)</label>
-                  <input
-                    className="a-input"
-                    list="salon-variant-options"
-                    placeholder="e.g. Natural, With extensions"
-                    value={salonForm.variant || ''}
-                    onChange={handleSalonChange('variant')}
-                  />
-                  <datalist id="salon-variant-options">
-                    <option value="Natural" />
-                    <option value="With extensions" />
-                    <option value="Ombre" />
-                    <option value="Shoulder length" />
-                    <option value="Waist length" />
-                  </datalist>
-                </div>
-                <div className="a-fg full">
-                  <label className="a-label">Pricing Type</label>
-                  <div className="pricing-toggle">
-                    <button
-                      type="button"
-                      className={`pricing-toggle-btn${salonForm.pricingType === 'fixed' ? ' active' : ''}`}
-                      onClick={handleSalonChange('pricingType')}
-                      value="fixed"
-                    >
-                      Fixed price
-                    </button>
-                    <button
-                      type="button"
-                      className={`pricing-toggle-btn${salonForm.pricingType === 'range' ? ' active' : ''}`}
-                      onClick={handleSalonChange('pricingType')}
-                      value="range"
-                    >
-                      Price range
-                    </button>
-                  </div>
-                </div>
-                <div className="a-fg">
-                  <label className="a-label">
-                    {salonForm.pricingType === 'range' ? 'Minimum Price' : 'Price'}
-                  </label>
-                  <input
-                    className={salonFormErrors.price ? 'a-input invalid' : 'a-input'}
-                    placeholder="Kshs 120"
-                    value={salonForm.priceDisplay}
-                    onChange={handleSalonChange('price')}
-                    onBlur={handleSalonFieldBlur('price')}
-                  />
-                  {salonFormErrors.price ? (
-                    <span className="a-error">{salonFormErrors.price}</span>
-                  ) : null}
-                </div>
-                {salonForm.pricingType === 'range' ? (
-                  <div className="a-fg">
-                    <label className="a-label">Maximum Price</label>
-                    <input
-                      className={salonFormErrors.priceMax ? 'a-input invalid' : 'a-input'}
-                      placeholder="Kshs 250"
-                      value={salonForm.priceMaxDisplay}
-                      onChange={handleSalonChange('priceMax')}
-                      onBlur={handleSalonFieldBlur('priceMax')}
-                    />
-                    {salonFormErrors.priceMax ? (
-                      <span className="a-error">{salonFormErrors.priceMax}</span>
-                    ) : null}
-                  </div>
-                ) : null}
-                <div className="a-fg">
-                  <label className="a-label">Duration</label>
-                  <input
-                    className="a-input"
-                    placeholder="5–7 hrs"
-                    value={salonForm.duration}
-                    onChange={handleSalonChange('duration')}
-                  />
-                </div>
-                <div className="a-fg">
-                  <label className="a-label">Style Image</label>
-                  <ImageUploader
-                    onUpload={(asset) => handleAssetUpload(asset, 'salon')}
-                    resetSignal={salonUploadReset}
-                    selectedAsset={salonForm.image}
-                  />
-                </div>
-                <div className="a-fg">
-                  <label className="a-label">Emoji (Fallback)</label>
-                  <input
-                    className="a-input"
-                    placeholder="🌿"
-                    maxLength={2}
-                    value={salonForm.emoji}
-                    onChange={handleSalonChange('emoji')}
-                  />
-                </div>
-                <div className="a-fg full">
-                  <label className="a-label">Description</label>
-                  <input
-                    className={salonFormErrors.desc ? 'a-input invalid' : 'a-input'}
-                    placeholder="Short style description"
-                    value={salonForm.desc}
-                    onChange={handleSalonChange('desc')}
-                    onBlur={handleSalonFieldBlur('desc')}
-                  />
-                  {salonFormErrors.desc ? (
-                    <span className="a-error">{salonFormErrors.desc}</span>
-                  ) : null}
-                </div>
-                {salonForm.image?.source === 'gallery' ? (
-                  <div className="a-fg full">
-                    {renderGallerySelection('salon', salonForm.image)}
-                  </div>
-                ) : null}
-                <VideoLinksField
-                  videos={salonForm.videos}
-                  onChange={(nextVideos) =>
-                    setSalonForm((prev) => ({ ...prev, videos: nextVideos }))
-                  }
-                  pendingUrl={salonForm.pendingVideoUrl}
-                  onPendingUrlChange={(nextUrl) =>
-                    setSalonForm((prev) => ({ ...prev, pendingVideoUrl: nextUrl }))
-                  }
-                  idPrefix="salon-video"
-                />
-                {salonForm.videos.length > 0 && !salonForm.assetUrl ? (
-                  <div className="a-hint-box" role="status">
-                    <Info size={14} className="a-hint-icon" />
-                    <span>
-                      <strong>Cover photo recommended:</strong> You've attached a
-                      TikTok post. Adding a cover photo ensures customers on
-                      slow networks see an instant preview before playing.
-                    </span>
-                  </div>
-                ) : null}
-                <div className="a-fg full">
-                  <button className="a-add-btn" type="submit">
-                    ＋ Add Hair Style
-                  </button>
-                </div>
-              </form>
+            <SalonManager
+              salonStyles={salonStyles}
+              loadingSalon={loadingSalon}
+              salonForm={salonForm}
+              salonFormErrors={salonFormErrors}
+              salonUploadReset={salonUploadReset}
+              onSalonChange={handleSalonChange}
+              onSalonFieldBlur={handleSalonFieldBlur}
+              onAddSalon={handleAddSalon}
+              onAssetUpload={handleAssetUpload}
+              onOpenInventoryEdit={openInventoryEdit}
+              onDeleteSalon={handleDeleteSalon}
+              onUpdateVideos={(nextVideos) =>
+                setSalonForm((prev) => ({ ...prev, videos: nextVideos }))
+              }
+              onUpdatePendingVideoUrl={(nextUrl) =>
+                setSalonForm((prev) => ({ ...prev, pendingVideoUrl: nextUrl }))
+              }
+              onClearSelectedAsset={handleClearSelectedAsset}
+              getItemAssetUrl={getItemAssetUrl}
+              renderSkeletonRows={renderSkeletonRows}
+            />
 
-              <div id="adminSalonList">
-                {loadingSalon ? (
-                  renderSkeletonRows(4, 'salon')
-                ) : salonStyles.length ? (
-                  salonStyles.map((item) => (
-                    <div className="a-item-row" key={item.id}>
-                      <span className="emoji">
-                        {getItemAssetUrl(item) ? (
-                          <img
-                            src={getItemAssetUrl(item)}
-                            alt={item.name}
-                            style={{
-                              width: '24px',
-                              height: '24px',
-                              borderRadius: '0.35rem',
-                              objectFit: 'cover',
-                            }}
-                          />
-                        ) : (
-                          item.emoji
-                        )}
-                      </span>
-                      <span className="name">{item.name}</span>
-                      {item.variant ? (
-                        <span className="a-variant-badge" title={`Variant: ${item.variant}`}>
-                          {item.variant}
-                        </span>
-                      ) : null}
-                      {item.videos?.length > 0 ? (
-                        <span className="a-video-badge" title={`${item.videos.length} video(s)`}>
-                          <Video size={12} /> {item.videos.length}
-                        </span>
-                      ) : null}
-                      <span className="sub">
-                        {formatPriceRange(item.price, item.priceMax, item.pricingType)} · {item.duration}
-                      </span>
-                      <div className="a-row-actions">
-                        <button
-                          className="a-edit"
-                          onClick={() => openInventoryEdit('salon', item)}
-                          type="button"
-                          aria-label={`Edit ${item.name}`}
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          className="a-del"
-                          onClick={() => handleDeleteSalon(item.id)}
-                          type="button"
-                          aria-label={`Delete ${item.name}`}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p style={{ opacity: 0.4, fontSize: '0.8rem' }}>
-                    No styles added yet.
-                  </p>
-                )}
-              </div>
-            </AdminPanel>
+            <BeadManager
+              beadProducts={beadProducts}
+              loadingBeads={loadingBeads}
+              lowStockItems={lowStockItems}
+              outOfStockItems={outOfStockItems}
+              beadForm={beadForm}
+              beadFormErrors={beadFormErrors}
+              beadUploadReset={beadUploadReset}
+              onBeadChange={handleBeadChange}
+              onBeadFieldBlur={handleBeadFieldBlur}
+              onAddBead={handleAddBead}
+              onAssetUpload={handleAssetUpload}
+              onOpenInventoryEdit={openInventoryEdit}
+              onDeleteBead={handleDeleteBead}
+              onUpdateVideos={(nextVideos) =>
+                setBeadForm((prev) => ({ ...prev, videos: nextVideos }))
+              }
+              onUpdatePendingVideoUrl={(nextUrl) =>
+                setBeadForm((prev) => ({ ...prev, pendingVideoUrl: nextUrl }))
+              }
+              onClearSelectedAsset={handleClearSelectedAsset}
+              getItemAssetUrl={getItemAssetUrl}
+              renderSkeletonRows={renderSkeletonRows}
+            />
 
-            <AdminPanel
-              title="Beadwork Products"
-              tagLabel="SHOP"
-              tagClass="tag-beads"
-              panelId="admin-beads-panel"
-            >
-              {lowStockItems.length || outOfStockItems.length ? (
-                <div className="inventory-alert-stack">
-                  {outOfStockItems.length ? (
-                    <div className="inventory-alert danger">
-                      <strong>Out of Stock</strong>
-                      <span>{outOfStockItems.map((item) => item.name).join(', ')}</span>
-                    </div>
-                  ) : null}
-                  {lowStockItems.length ? (
-                    <div className="inventory-alert warning">
-                      <strong>Low Stock</strong>
-                      <span>{lowStockItems.map((item) => item.name).join(', ')}</span>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
+            <BookingsManager
+              pendingBookings={pendingBookings}
+              loadingBookings={loadingBookings}
+              onBookingStatus={handleBookingStatus}
+              onReminder={handleReminder}
+              onPreviewPhoto={setPreviewPhoto}
+              renderSkeletonRows={renderSkeletonRows}
+            />
 
-              <form
-                className="admin-form tour-add-bead-form"
-                style={{ marginBottom: '1rem' }}
-                onSubmit={handleAddBead}
-              >
-                <div className="a-group full">
-                  <h4 className="a-group-title">Basics</h4>
-                  <div className="a-fg">
-                    <label className="a-label">Product Name</label>
-                    <input
-                      className={beadFormErrors.name ? 'a-input invalid' : 'a-input'}
-                      placeholder="Waist Beads"
-                      value={beadForm.name}
-                      onChange={handleBeadChange('name')}
-                      onBlur={handleBeadFieldBlur('name')}
-                    />
-                    {beadFormErrors.name ? (
-                      <span className="a-error">{beadFormErrors.name}</span>
-                    ) : null}
-                  </div>
-                  <div className="a-fg">
-                    <label className="a-label">Variant (Optional)</label>
-                    <input
-                      className="a-input"
-                      list="bead-variant-options"
-                      placeholder="e.g. Hand-painted, Original finish"
-                      value={beadForm.variant || ''}
-                      onChange={handleBeadChange('variant')}
-                    />
-                    <datalist id="bead-variant-options">
-                      <option value="Hand-painted" />
-                      <option value="Original finish" />
-                      <option value="Custom color" />
-                      <option value="Glass" />
-                      <option value="Clay" />
-                    </datalist>
-                  </div>
-                  <div className="a-fg full">
-                    <label className="a-label">Description</label>
-                    <input
-                      className={beadFormErrors.desc ? 'a-input invalid' : 'a-input'}
-                      placeholder="Short product description"
-                      value={beadForm.desc}
-                      onChange={handleBeadChange('desc')}
-                      onBlur={handleBeadFieldBlur('desc')}
-                    />
-                    {beadFormErrors.desc ? (
-                      <span className="a-error">{beadFormErrors.desc}</span>
-                    ) : null}
-                  </div>
-                  <div className="a-fg">
-                    <label className="a-label">Emoji (Fallback)</label>
-                    <input
-                      className="a-input"
-                      placeholder="📿"
-                      maxLength={2}
-                      value={beadForm.emoji}
-                      onChange={handleBeadChange('emoji')}
-                    />
-                  </div>
-                </div>
-                <div className="a-group full">
-                  <h4 className="a-group-title">Media</h4>
-                  <div className="a-fg full">
-                    <label className="a-label">Product Images</label>
-                    <ImageUploader
-                      onUpload={(asset) => handleAssetUpload(asset, 'beads')}
-                      resetSignal={beadUploadReset}
-                      selectedAssets={beadForm.images}
-                      allowMultiple
-                    />
-                  </div>
-                  <VideoLinksField
-                    videos={beadForm.videos}
-                    onChange={(nextVideos) =>
-                      setBeadForm((prev) => ({ ...prev, videos: nextVideos }))
-                    }
-                    pendingUrl={beadForm.pendingVideoUrl}
-                    onPendingUrlChange={(nextUrl) =>
-                      setBeadForm((prev) => ({ ...prev, pendingVideoUrl: nextUrl }))
-                    }
-                    idPrefix="bead-video"
-                  />
-                  {beadForm.videos?.length > 0 &&
-                  (!beadForm.images || beadForm.images.length === 0) ? (
-                    <div className="a-hint-box" role="status">
-                      <Info size={14} className="a-hint-icon" />
-                      <span>
-                        <strong>Cover photo recommended:</strong> You've attached a
-                        TikTok post. Adding a cover photo ensures customers on slow
-                        networks see an instant preview before playing.
-                      </span>
-                    </div>
-                  ) : null}
-                </div>
-                <div className="a-group full">
-                  <h4 className="a-group-title">Pricing & Stock</h4>
-                  <div className="pricing-toggle">
-                    <button
-                      type="button"
-                      className={`pricing-toggle-btn${beadForm.pricingType === 'fixed' ? ' active' : ''}`}
-                      onClick={handleBeadChange('pricingType')}
-                      value="fixed"
-                    >
-                      Fixed price
-                    </button>
-                    <button
-                      type="button"
-                      className={`pricing-toggle-btn${beadForm.pricingType === 'range' ? ' active' : ''}`}
-                      onClick={handleBeadChange('pricingType')}
-                      value="range"
-                    >
-                      Price range
-                    </button>
-                  </div>
-                  <div className="a-fg">
-                    <label className="a-label">
-                      {beadForm.pricingType === 'range' ? 'Minimum Price' : 'Price'}
-                    </label>
-                    <input
-                      className={beadFormErrors.price ? 'a-input invalid' : 'a-input'}
-                      placeholder="Kshs 25"
-                      value={beadForm.priceDisplay}
-                      onChange={handleBeadChange('price')}
-                      onBlur={handleBeadFieldBlur('price')}
-                    />
-                    {beadFormErrors.price ? (
-                      <span className="a-error">{beadFormErrors.price}</span>
-                    ) : null}
-                  </div>
-                  {beadForm.pricingType === 'range' ? (
-                    <div className="a-fg">
-                      <label className="a-label">Maximum Price</label>
-                      <input
-                        className={beadFormErrors.priceMax ? 'a-input invalid' : 'a-input'}
-                        placeholder="Kshs 40"
-                        value={beadForm.priceMaxDisplay}
-                        onChange={handleBeadChange('priceMax')}
-                        onBlur={handleBeadFieldBlur('priceMax')}
-                      />
-                      {beadFormErrors.priceMax ? (
-                        <span className="a-error">{beadFormErrors.priceMax}</span>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  <div className="a-fg">
-                    <label className="a-label">Stock Qty</label>
-                    <input
-                      className="a-input"
-                      placeholder="10"
-                      type="number"
-                      value={beadForm.stock}
-                      onChange={handleBeadChange('stock')}
-                    />
-                  </div>
-                </div>
-                {beadForm.images?.[0]?.source === 'gallery' ? (
-                  <div className="a-fg full">
-                    {renderGallerySelection('beads', beadForm.images[0])}
-                  </div>
-                ) : null}
-                <div className="a-fg full">
-                  <button className="a-add-btn bead-add" type="submit">
-                    ＋ Add Bead Product
-                  </button>
-                </div>
-              </form>
-
-              <div id="adminBeadList">
-                {loadingBeads ? (
-                  renderSkeletonRows(4, 'beads')
-                ) : beadProducts.length ? (
-                  beadProducts.map((item) => (
-                    <div className="a-item-row" key={item.id}>
-                      <span className="emoji">
-                        {getItemAssetUrl(item) ? (
-                          <img
-                            src={getItemAssetUrl(item)}
-                            alt={item.name}
-                            style={{
-                              width: '24px',
-                              height: '24px',
-                              borderRadius: '0.35rem',
-                              objectFit: 'cover',
-                            }}
-                          />
-                        ) : (
-                          item.emoji
-                        )}
-                      </span>
-                      <span className="name">{item.name}</span>
-                      {item.variant ? (
-                        <span className="a-variant-badge" title={`Variant: ${item.variant}`}>
-                          {item.variant}
-                        </span>
-                      ) : null}
-                      {item.videos?.length > 0 ? (
-                        <span className="a-video-badge" title={`${item.videos.length} video(s)`}>
-                          <Video size={12} /> {item.videos.length}
-                        </span>
-                      ) : null}
-                      <span className="sub">
-                        {formatPriceRange(item.price, item.priceMax, item.pricingType)} ·{' '}
-                        {item.stock === 0 ? 'Out of stock' : `${item.stock} in stock`}
-                      </span>
-                      <div className="a-row-actions">
-                        <button
-                          className="a-edit"
-                          onClick={() => openInventoryEdit('beads', item)}
-                          type="button"
-                          aria-label={`Edit ${item.name}`}
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          className="a-del"
-                          onClick={() => handleDeleteBead(item.id)}
-                          type="button"
-                          aria-label={`Delete ${item.name}`}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p style={{ opacity: 0.4, fontSize: '0.8rem' }}>
-                    No products added yet.
-                  </p>
-                )}
-              </div>
-            </AdminPanel>
-
-            <AdminPanel
-              title="Appointment Requests"
-              tagLabel="BOOKINGS"
-              tagClass="tag-bookings"
-              className="tour-appointments-panel"
-            >
-              <div id="adminBookings" className="tour-appointments-actions">
-                {loadingBookings ? (
-                  renderSkeletonRows(3, 'bookings')
-                ) : pendingBookings.length ? (
-                  pendingBookings.map((item) => {
-                    const chipClass =
-                      item.status === 'pending'
-                        ? 'sc-pending'
-                        : item.status === 'confirmed'
-                          ? 'sc-confirmed'
-                          : 'sc-declined'
-
-                    return (
-                      <div className="b-row" key={item.id}>
-                        <div className="b-top">
-                          <span className="b-name">{item.name}</span>
-                          <span className={`status-chip ${chipClass}`}>
-                            {item.status.toUpperCase()}
-                          </span>
-                        </div>
-                        <div className="b-sub">
-                          {item.style} · {item.date} at {item.time}
-                        </div>
-                        {item.notes && (
-                          <div style={{ fontSize: '0.85rem', color: 'var(--text-color)', opacity: 0.8, marginTop: '4px' }}>
-                            <strong>Notes:</strong> {item.notes}
-                          </div>
-                        )}
-                        {((item.referencePhotoUrls && item.referencePhotoUrls.length > 0) || item.referencePhotoUrl) && (
-                          <div style={{ marginTop: '8px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                            {(item.referencePhotoUrls || [item.referencePhotoUrl]).map((url, i) => url && (
-                              <img
-                                key={i}
-                                src={url}
-                                alt="Reference"
-                                style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px', cursor: 'pointer', border: '1px solid var(--border-color)' }}
-                                onClick={() => setPreviewPhoto(url)}
-                                title="Click to view reference"
-                              />
-                            ))}
-                          </div>
-                        )}
-                        {item.status === 'pending' ? (
-                          <div className="b-actions">
-                            <button
-                              className="confirm-btn cb-confirm"
-                              type="button"
-                              onClick={() => handleBookingStatus(item.id, 'confirmed')}
-                            >
-                              <Check size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} /> Confirm
-                            </button>
-                            <button
-                              className="confirm-btn cb-decline"
-                              type="button"
-                              onClick={() => handleBookingStatus(item.id, 'declined')}
-                            >
-                              <X size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} /> Decline
-                            </button>
-                            <button
-                              className="confirm-btn"
-                              type="button"
-                              onClick={() => handleReminder(item, 'booking')}
-                            >
-                              <Bell size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} /> Remind
-                            </button>
-                          </div>
-                        ) : null}
-                      </div>
-                    )
-                  })
-                ) : (
-                  <p style={{ opacity: 0.4, fontSize: '0.8rem' }}>
-                    No pending actions.
-                  </p>
-                )}
-              </div>
-            </AdminPanel>
-
-            <AdminPanel
-              title="Order Fulfillment"
-              tagLabel="ORDERS"
-              tagClass="tag-orders"
-              className="tour-orders-panel"
-            >
-              <div id="adminOrders" className="tour-orders-actions">
-                {loadingOrders ? (
-                  renderSkeletonRows(3, 'orders')
-                ) : pendingOrders.length ? (
-                  pendingOrders.map((item) => (
-                    <div className="b-row" key={item.id}>
-                      <div className="b-top">
-                        <span className="b-name">
-                          {item.name}{' '}
-                          <span style={{ opacity: 0.5, fontSize: '0.75rem' }}>
-                            #{item.id}
-                          </span>
-                        </span>
-                        <span
-                          className={`status-chip ${
-                            item.status === 'pending'
-                              ? 'sc-pending'
-                              : 'sc-fulfilled'
-                          }`}
-                        >
-                          {item.status.toUpperCase()}
-                        </span>
-                      </div>
-                      <div className="b-sub">
-                        {item.items} · {formatCurrency(item.total)}
-                      </div>
-                      {item.status === 'pending' ? (
-                        <div className="b-actions">
-                          <button
-                            className="confirm-btn cb-fulfill"
-                            type="button"
-                            onClick={() => handleOrderStatus(item.id, 'fulfilled')}
-                          >
-                            <PackageCheck size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} /> Mark Fulfilled
-                          </button>
-                          <button
-                            className="confirm-btn"
-                            type="button"
-                            onClick={() => handleReminder(item, 'order')}
-                          >
-                            <Bell size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} /> Remind
-                          </button>
-                        </div>
-                      ) : null}
-                    </div>
-                  ))
-                ) : (
-                  <p style={{ opacity: 0.4, fontSize: '0.8rem' }}>
-                    No pending actions.
-                  </p>
-                )}
-              </div>
-            </AdminPanel>
+            <OrdersManager
+              pendingOrders={pendingOrders}
+              loadingOrders={loadingOrders}
+              onOrderStatus={handleOrderStatus}
+              onReminder={handleReminder}
+              renderSkeletonRows={renderSkeletonRows}
+            />
           </div>
         </>
       )}
-      {previewPhoto && (
-        <div
-          className="overlay open"
-          onClick={() => setPreviewPhoto(null)}
-          style={{ zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="previewPhotoTitle"
-        >
-          <div
-            className="sheet"
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: '600px', width: '90%', height: 'auto', maxHeight: '90vh', padding: '1.5rem', background: 'var(--bg-color)', borderRadius: '12px', display: 'flex', flexDirection: 'column' }}
-          >
-            <div className="sheet-header">
-              <h2 id="previewPhotoTitle">Reference Photo</h2>
-              <button
-                className="close-btn"
-                onClick={() => setPreviewPhoto(null)}
-                type="button"
-                aria-label="Close photo preview"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', justifyContent: 'center', margin: '1rem 0' }}>
-              <img
-                src={previewPhoto}
-                alt="Reference"
-                style={{ maxWidth: '100%', maxHeight: '60vh', objectFit: 'contain', borderRadius: '8px' }}
-              />
-            </div>
-            <a
-              href={previewPhoto}
-              target="_blank"
-              rel="noopener noreferrer"
-              download
-              className="btn btn-primary"
-              style={{ textAlign: 'center', textDecoration: 'none' }}
-            >
-              <Download size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} /> Download / View Full Image
-            </a>
-          </div>
-        </div>
-      )}
+      <PhotoPreviewModal
+        photoUrl={previewPhoto}
+        onClose={() => setPreviewPhoto(null)}
+      />
     </>
   )
 }

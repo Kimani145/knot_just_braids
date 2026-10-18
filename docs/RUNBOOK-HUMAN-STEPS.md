@@ -28,6 +28,10 @@ This runbook documents all human-only deployment, security, and account configur
    - Uncheck **Allow overwrite**.
 4. Once **WS6c** (signed uploads) is deployed and verified:
    - Switch the upload preset mode from **Unsigned** to **Signed** to permanently close anonymous upload abuse.
+5. **Asset Library Deletions Note:**
+   - In the admin asset gallery, deleting an asset removes the Firestore metadata record from the library.
+   - The physical image remains hosted in Cloudinary until backend signed deletion (`/api/delete-asset` in WS6s) is active.
+   - To clean up orphaned image files before WS6s, delete them directly in the Cloudinary Media Library console.
 
 ---
 

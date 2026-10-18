@@ -8,6 +8,8 @@ import {
   query,
   updateDoc,
 } from 'firebase/firestore'
+import { AlertTriangle, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { db } from '../../firebase'
 import { ASSET_METADATA_COLLECTION } from '../../constants/catalog'
 import { SkeletonCard } from '../layout/Skeletons'
@@ -17,7 +19,12 @@ const initialEditForm = {
   internalNote: '',
 }
 
-function AdminGallery({ onRepublishToSalon, onRepublishToBeads }) {
+function AdminGallery({
+  onRepublishToSalon,
+  onRepublishToBeads,
+  salonStyles = [],
+  beadProducts = [],
+}) {
   const [assets, setAssets] = useState([])
   const [loadingAssets, setLoadingAssets] = useState(true)
   const [error, setError] = useState(null)
@@ -28,6 +35,8 @@ function AdminGallery({ onRepublishToSalon, onRepublishToBeads }) {
   const [editError, setEditError] = useState('')
   const [isSavingEdit, setIsSavingEdit] = useState(false)
   const [feedback, setFeedback] = useState(null)
+  const [assetToDelete, setAssetToDelete] = useState(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     const assetsQuery = query(
@@ -102,22 +111,36 @@ function AdminGallery({ onRepublishToSalon, onRepublishToBeads }) {
     }
   }
 
-  const handleDelete = async (asset) => {
-    setOpenMenuId(null)
-    setFeedback(null)
+  const getAssetReferences = (asset) => {
+    if (!asset?.assetUrl) return []
+    const url = asset.assetUrl
+    const refs = []
+    for (const style of salonStyles) {
+      if (style.assetUrl === url) {
+        refs.push({ type: 'Hair Style', name: style.name })
+      }
+    }
+    for (const bead of beadProducts) {
+      const inImages = Array.isArray(bead.images) && bead.images.includes(url)
+      if (bead.assetUrl === url || inImages) {
+        refs.push({ type: 'Bead Product', name: bead.name })
+      }
+    }
+    return refs
+  }
 
+  const handleConfirmDelete = async () => {
+    if (!assetToDelete) return
+    setIsDeleting(true)
     try {
-      await deleteDoc(doc(db, ASSET_METADATA_COLLECTION, String(asset.id)))
-      setFeedback({
-        type: 'success',
-        message: `${asset.fileName} was removed from the asset library.`,
-      })
+      await deleteDoc(doc(db, ASSET_METADATA_COLLECTION, String(assetToDelete.id)))
+      toast.success(`"${assetToDelete.fileName}" metadata removed from library.`)
+      setAssetToDelete(null)
     } catch (deleteError) {
       console.error('Failed to delete asset metadata:', deleteError)
-      setFeedback({
-        type: 'error',
-        message: 'Could not delete the asset metadata right now.',
-      })
+      toast.error('Could not delete the asset metadata right now.')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -268,7 +291,10 @@ function AdminGallery({ onRepublishToSalon, onRepublishToBeads }) {
                       <button
                         className="danger"
                         type="button"
-                        onClick={() => handleDelete(asset)}
+                        onClick={() => {
+                          setOpenMenuId(null)
+                          setAssetToDelete(asset)
+                        }}
                       >
                         Delete
                       </button>
@@ -314,6 +340,15 @@ function AdminGallery({ onRepublishToSalon, onRepublishToBeads }) {
                   disabled={!asset.assetUrl}
                 >
                   ＋ To Beads
+                </button>
+                <button
+                  className="btn btn-outline btn-sm btn-danger-outline"
+                  type="button"
+                  onClick={() => setAssetToDelete(asset)}
+                  aria-label={`Delete ${asset.fileName}`}
+                >
+                  <Trash2 size={13} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
+                  Delete
                 </button>
               </div>
             </div>
@@ -378,6 +413,97 @@ function AdminGallery({ onRepublishToSalon, onRepublishToBeads }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {assetToDelete ? (
+        <div className="overlay open" role="dialog" aria-modal="true" aria-labelledby="confirmDeleteTitle">
+          <div className="sheet confirm-sheet">
+            <div className="sheet-header">
+              <h2 id="confirmDeleteTitle">Delete Asset Metadata</h2>
+              <button
+                className="close-btn"
+                onClick={() => setAssetToDelete(null)}
+                type="button"
+                aria-label="Close dialog"
+                disabled={isDeleting}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="form-stack">
+              <p>
+                Are you sure you want to remove <strong>{assetToDelete.fileName}</strong> from the asset library?
+              </p>
+
+              {(() => {
+                const refs = getAssetReferences(assetToDelete)
+                if (refs.length > 0) {
+                  return (
+                    <div
+                      className="a-error"
+                      style={{
+                        display: 'flex',
+                        gap: '0.6rem',
+                        alignItems: 'flex-start',
+                        padding: '0.75rem',
+                        borderRadius: 'var(--radius-sm)',
+                        background: 'rgba(155, 44, 44, 0.1)',
+                        border: '1px solid var(--danger)',
+                        color: 'var(--text)',
+                      }}
+                    >
+                      <AlertTriangle size={18} style={{ color: 'var(--danger)', flexShrink: 0, marginTop: '2px' }} />
+                      <div>
+                        <strong style={{ color: 'var(--danger)' }}>Warning: Asset in use!</strong>
+                        <p style={{ marginTop: '0.25rem', fontSize: '0.82rem' }}>
+                          This image is currently used by: {refs.map((r) => `${r.name} (${r.type})`).join(', ')}.
+                        </p>
+                        <p style={{ marginTop: '0.25rem', fontSize: '0.82rem', color: 'var(--muted)' }}>
+                          Existing items will retain their image URLs, but the asset will no longer appear in your library.
+                        </p>
+                      </div>
+                    </div>
+                  )
+                }
+                return null
+              })()}
+
+              <div
+                style={{
+                  background: 'var(--surface2)',
+                  padding: '0.75rem',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--border)',
+                  fontSize: '0.8rem',
+                  color: 'var(--muted)',
+                  lineHeight: '1.4',
+                }}
+              >
+                <strong>Note on Cloudinary:</strong> Deleting metadata removes this item from the asset library. The underlying image remains stored on Cloudinary until signed deletion is enabled in WS6.
+              </div>
+
+              <div className="security-actions">
+                <button
+                  className="btn btn-danger"
+                  type="button"
+                  onClick={handleConfirmDelete}
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete Metadata'}
+                </button>
+                <button
+                  className="btn btn-outline"
+                  type="button"
+                  onClick={() => setAssetToDelete(null)}
+                  disabled={isDeleting}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       ) : null}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import formatCurrency from '../../utils/formatCurrency'
+import { formatPriceRange } from '../../utils/pricingUtils.js'
 import TikTokPlayer from './TikTokPlayer'
 
 function ProductQuickViewContent({
@@ -61,10 +61,7 @@ function ProductQuickViewContent({
     onClose?.()
   }
 
-  const showPrice =
-    pricingType === 'range'
-      ? `${formatCurrency(item?.price)} – ${formatCurrency(item?.priceMax)}`
-      : formatCurrency(item?.price)
+  const showPrice = formatPriceRange(item?.price, item?.priceMax, pricingType)
 
   const goPrev = () => {
     if (slides.length <= 1) return
@@ -96,7 +93,22 @@ function ProductQuickViewContent({
   return (
     <div className="sheet quick-view-sheet">
       <div className="sheet-header">
-        <h2 id="quickViewTitle">{item.name}</h2>
+        <h2 id="quickViewTitle">
+          {item.name}
+          {item.variant ? (
+            <span
+              className="badge-variant"
+              style={{
+                marginLeft: '0.5rem',
+                fontSize: '0.75rem',
+                fontWeight: '500',
+                verticalAlign: 'middle',
+              }}
+            >
+              {item.variant}
+            </span>
+          ) : null}
+        </h2>
         <button
           ref={closeBtnRef}
           className="close-btn"

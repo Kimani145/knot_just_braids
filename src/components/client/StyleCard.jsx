@@ -1,5 +1,5 @@
 import { Ban, Clock3, Package, Video } from 'lucide-react'
-import formatCurrency from '../../utils/formatCurrency'
+import { formatPriceRange } from '../../utils/pricingUtils.js'
 
 function StyleCard({
   item,
@@ -17,10 +17,7 @@ function StyleCard({
   const isLowStock =
     !isSalon && !isRangeProduct && item.stock !== undefined && item.stock > 0 && item.stock < 3
   const hasVideos = Array.isArray(item.videos) && item.videos.length > 0
-  const showPrice =
-    pricingType === 'range'
-      ? `${formatCurrency(item.price)} – ${formatCurrency(item.priceMax)}`
-      : formatCurrency(item.price)
+  const showPrice = formatPriceRange(item.price, item.priceMax, pricingType)
 
   const handleAction = () => {
     if (isSalon) {
@@ -72,7 +69,14 @@ function StyleCard({
         ) : null}
       </div>
       <div className="card-body">
-        <h3>{item.name}</h3>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.25rem' }}>
+          <h3>{item.name}</h3>
+          {item.variant ? (
+            <span className="badge-variant" title={`Variant: ${item.variant}`}>
+              {item.variant}
+            </span>
+          ) : null}
+        </div>
         <p className="desc">{item.desc}</p>
         <div className="card-meta">
           <span className="price">{showPrice}</span>

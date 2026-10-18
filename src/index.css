@@ -2882,3 +2882,117 @@ footer .logo {
   margin-left: 0.4rem;
   vertical-align: middle;
 }
+
+/* ===== WS2 CATALOG CORRECTNESS STYLES ===== */
+.badge-variant {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  letter-spacing: 0.02em;
+}
+
+.a-variant-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  margin-left: 0.35rem;
+  vertical-align: middle;
+}
+
+.btn-danger-outline {
+  background: none;
+  border: 1px solid var(--danger);
+  color: var(--danger);
+}
+
+.btn-danger-outline:hover {
+  background: rgba(155, 44, 44, 0.1);
+}
+
+.catalog-lint-banner {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid #d97706;
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.25rem;
+  transition: all var(--transition);
+}
+
+.catalog-lint-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.catalog-lint-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.catalog-lint-icon {
+  color: #d97706;
+  flex-shrink: 0;
+}
+
+.catalog-lint-list {
+  list-style: none;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.catalog-lint-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.catalog-lint-tag {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.catalog-lint-tag.tag-salon {
+  background: var(--salon-soft);
+  color: var(--salon-accent);
+}
+
+.catalog-lint-tag.tag-beads {
+  background: var(--bead-soft);
+  color: var(--bead-accent);
+}
+
+.catalog-lint-msg {
+  flex: 1;
+}
+

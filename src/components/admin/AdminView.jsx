@@ -29,17 +29,23 @@ import {
 } from '../../constants/catalog'
 import { sendDynamicEmail } from '../../utils/emailService'
 import { generateReminderHTML } from '../../utils/emailTemplates'
-import { Video } from 'lucide-react'
+import { AlertTriangle, Video } from 'lucide-react'
 import VideoLinksField from './VideoLinksField'
 import { sanitizeVideos } from '../../utils/tiktok'
+import { formatPriceRange, normalizePriceInput } from '../../utils/pricingUtils'
+import { lintAllCatalogs } from '../../utils/catalogLint'
 
 const initialSalonForm = {
   name: '',
+  pricingType: 'fixed',
   price: '',
+  priceMax: '',
   priceDisplay: '',
+  priceMaxDisplay: '',
   duration: '',
   emoji: '',
   desc: '',
+  variant: '',
   image: null,
   videos: [],
   pendingVideoUrl: '',
@@ -55,6 +61,7 @@ const initialBeadForm = {
   stock: '',
   emoji: '',
   desc: '',
+  variant: '',
   images: [],
   videos: [],
   pendingVideoUrl: '',
@@ -64,28 +71,20 @@ const initialInventoryEditForm = {
   id: '',
   type: 'salon',
   name: '',
+  pricingType: 'fixed',
   price: '',
+  priceMax: '',
   priceDisplay: '',
+  priceMaxDisplay: '',
   duration: '',
   stock: '',
   desc: '',
+  variant: '',
+  image: null,
+  images: [],
   videos: [],
   initialVideos: [],
   pendingVideoUrl: '',
-}
-
-const normalizePriceInput = (value) => {
-  const normalized = String(value).replace(/[^0-9.]/g, '')
-  if (!normalized) {
-    return { raw: '', display: '' }
-  }
-
-  const parsed = Number.parseFloat(normalized)
-  if (Number.isNaN(parsed)) {
-    return { raw: '', display: '' }
-  }
-
-  return { raw: parsed, display: formatCurrency(parsed) }
 }
 
 const stripFileExtension = (fileName = '') =>
@@ -114,6 +113,47 @@ const normalizeWhatsappPhone = (phone) => {
   return digits
 }
 
+function CatalogLintBanner({ warnings = [] }) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  if (!warnings.length) return null
+
+  return (
+    <div className="catalog-lint-banner" role="region" aria-label="Catalog Health Issues">
+      <div className="catalog-lint-header" onClick={() => setIsExpanded((prev) => !prev)}>
+        <div className="catalog-lint-title">
+          <AlertTriangle size={18} className="catalog-lint-icon" />
+          <span>
+            <strong>Catalog Health:</strong> {warnings.length} {warnings.length === 1 ? 'issue' : 'issues'} detected
+          </span>
+        </div>
+        <button
+          type="button"
+          className="btn btn-outline btn-sm"
+          style={{ padding: '2px 8px', fontSize: '0.75rem' }}
+          onClick={(e) => {
+            e.stopPropagation()
+            setIsExpanded((prev) => !prev)
+          }}
+        >
+          {isExpanded ? 'Hide' : 'Review'}
+        </button>
+      </div>
+      {isExpanded ? (
+        <ul className="catalog-lint-list">
+          {warnings.map((warn) => (
+            <li key={warn.id} className="catalog-lint-item">
+              <span className={`catalog-lint-tag tag-${warn.catalogType}`}>
+                {warn.catalogType === 'salon' ? 'SALON' : 'BEADS'}
+              </span>
+              <span className="catalog-lint-msg">{warn.message}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  )
+}
+
 function InventoryQuickEditModal({
   editForm,
   feedback,
@@ -121,6 +161,7 @@ function InventoryQuickEditModal({
   onChange,
   onClose,
   onSubmit,
+  onAssetUpload,
 }) {
   const isOpen = Boolean(editForm.id)
 
@@ -143,13 +184,65 @@ function InventoryQuickEditModal({
             </div>
 
             <div className="fg">
-              <label>Price</label>
+              <label>Pricing Type</label>
+              <div className="pricing-toggle">
+                <button
+                  type="button"
+                  className={`pricing-toggle-btn${editForm.pricingType === 'fixed' ? ' active' : ''}`}
+                  onClick={onChange('pricingType')}
+                  value="fixed"
+                >
+                  Fixed price
+                </button>
+                <button
+                  type="button"
+                  className={`pricing-toggle-btn${editForm.pricingType === 'range' ? ' active' : ''}`}
+                  onClick={onChange('pricingType')}
+                  value="range"
+                >
+                  Price range
+                </button>
+              </div>
+            </div>
+
+            <div className="fg">
+              <label>{editForm.pricingType === 'range' ? 'Minimum Price' : 'Price'}</label>
               <input
                 type="text"
                 value={editForm.priceDisplay}
                 onChange={onChange('price')}
                 placeholder="Kshs 120"
               />
+            </div>
+
+            {editForm.pricingType === 'range' ? (
+              <div className="fg">
+                <label>Maximum Price</label>
+                <input
+                  type="text"
+                  value={editForm.priceMaxDisplay}
+                  onChange={onChange('priceMax')}
+                  placeholder="Kshs 250"
+                />
+              </div>
+            ) : null}
+
+            <div className="fg">
+              <label>Variant (Optional)</label>
+              <input
+                type="text"
+                list="inventory-edit-variants"
+                value={editForm.variant || ''}
+                onChange={onChange('variant')}
+                placeholder="e.g. Hand-painted, Original finish"
+              />
+              <datalist id="inventory-edit-variants">
+                <option value="Hand-painted" />
+                <option value="Original finish" />
+                <option value="Natural" />
+                <option value="With extensions" />
+                <option value="Custom color" />
+              </datalist>
             </div>
 
             {editForm.type === 'salon' ? (
@@ -180,6 +273,16 @@ function InventoryQuickEditModal({
                 value={editForm.desc}
                 onChange={onChange('desc')}
                 placeholder="Short product or style description"
+              />
+            </div>
+
+            <div className="fg">
+              <label>{editForm.type === 'salon' ? 'Style Image' : 'Product Images'}</label>
+              <ImageUploader
+                onUpload={(asset) => onAssetUpload?.(asset, editForm.type)}
+                selectedAsset={editForm.image}
+                selectedAssets={editForm.images}
+                allowMultiple={editForm.type === 'beads'}
               />
             </div>
 
@@ -342,6 +445,12 @@ function AdminView({
       setRunTour(true)
     }, 100)
   }
+  const [salonFormErrors, setSalonFormErrors] = useState({
+    name: '',
+    price: '',
+    priceMax: '',
+    desc: '',
+  })
   const [beadForm, setBeadForm] = useState(initialBeadForm)
   const [beadFormErrors, setBeadFormErrors] = useState({
     name: '',
@@ -386,6 +495,11 @@ function AdminView({
   const outOfStockItems = useMemo(
     () => beadProducts.filter((product) => product.stock === 0),
     [beadProducts],
+  )
+
+  const catalogWarnings = useMemo(
+    () => lintAllCatalogs(salonStyles, beadProducts),
+    [salonStyles, beadProducts],
   )
 
   const isGallery = adminMode === 'gallery'
@@ -490,16 +604,65 @@ function AdminView({
     }
   }
 
+  const validateSalonField = (field, formState = salonForm) => {
+    const pricingType = formState.pricingType === 'range' ? 'range' : 'fixed'
+    const priceValue = Number(formState.price)
+    const priceMaxValue = Number(formState.priceMax)
+
+    if (field === 'name' && !formState.name.trim()) {
+      return 'Style name is required.'
+    }
+    if (field === 'desc' && !formState.desc.trim()) {
+      return 'Description is required.'
+    }
+    if (field === 'price') {
+      if (!priceValue || priceValue <= 0) return 'Enter a valid minimum price.'
+      if (pricingType === 'range' && priceMaxValue <= priceValue) {
+        return 'Minimum price must be lower than maximum price.'
+      }
+    }
+    if (field === 'priceMax' && pricingType === 'range') {
+      if (!priceMaxValue || priceMaxValue <= 0) return 'Enter a valid maximum price.'
+      if (priceMaxValue <= priceValue) return 'Maximum price must be greater than minimum price.'
+    }
+    return ''
+  }
+
+  const handleSalonFieldBlur = (field) => () => {
+    setSalonFormErrors((prev) => ({
+      ...prev,
+      [field]: validateSalonField(field),
+    }))
+  }
+
   const handleSalonChange = (field) => (event) => {
     const { value } = event.target
-    if (field === 'price') {
+    if (field === 'price' || field === 'priceMax') {
       const normalized = normalizePriceInput(value)
       setSalonForm((prev) => ({
         ...prev,
-        price: normalized.raw,
-        priceDisplay: normalized.display,
+        [field]: normalized.raw,
+        [field === 'price' ? 'priceDisplay' : 'priceMaxDisplay']: normalized.display,
       }))
+      setSalonFormErrors((prev) => ({ ...prev, [field]: '' }))
       return
+    }
+
+    if (field === 'pricingType') {
+      setSalonForm((prev) => ({
+        ...prev,
+        pricingType: value === 'range' ? 'range' : 'fixed',
+        priceMax:
+          value === 'range' ? prev.priceMax : '',
+        priceMaxDisplay:
+          value === 'range' ? prev.priceMaxDisplay : '',
+      }))
+      setSalonFormErrors((prev) => ({ ...prev, price: '', priceMax: '' }))
+      return
+    }
+
+    if (field === 'name' || field === 'desc') {
+      setSalonFormErrors((prev) => ({ ...prev, [field]: '' }))
     }
 
     setSalonForm((prev) => ({ ...prev, [field]: value }))
@@ -570,17 +733,42 @@ function AdminView({
 
   const handleInventoryEditChange = (field) => (event) => {
     const { value } = event.target
-    if (field === 'price') {
+    if (field === 'price' || field === 'priceMax') {
       const normalized = normalizePriceInput(value)
       setInventoryEditForm((prev) => ({
         ...prev,
-        price: normalized.raw,
-        priceDisplay: normalized.display,
+        [field]: normalized.raw,
+        [field === 'price' ? 'priceDisplay' : 'priceMaxDisplay']: normalized.display,
+      }))
+      return
+    }
+
+    if (field === 'pricingType') {
+      setInventoryEditForm((prev) => ({
+        ...prev,
+        pricingType: value === 'range' ? 'range' : 'fixed',
+        priceMax: value === 'range' ? prev.priceMax : '',
+        priceMaxDisplay: value === 'range' ? prev.priceMaxDisplay : '',
       }))
       return
     }
 
     setInventoryEditForm((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const handleInventoryEditAssetUpload = (asset, formType) => {
+    if (formType === 'salon') {
+      setInventoryEditForm((prev) => ({
+        ...prev,
+        image: asset || null,
+      }))
+      return
+    }
+
+    setInventoryEditForm((prev) => ({
+      ...prev,
+      images: Array.isArray(asset) ? asset : asset ? [asset] : [],
+    }))
   }
 
   const handleAssetUpload = (asset, formType) => {
@@ -644,15 +832,42 @@ function AdminView({
 
   const openInventoryEdit = (type, item) => {
     const itemVideos = sanitizeVideos(item.videos)
+    const pricingType = item.pricingType === 'range' ? 'range' : 'fixed'
+    const itemImages = Array.isArray(item.images) && item.images.length > 0
+      ? item.images.filter(Boolean)
+      : item.assetUrl
+        ? [item.assetUrl]
+        : []
+    const normalizedAssets = itemImages.map((url, i) => ({
+      id: `existing-asset-${i}`,
+      assetUrl: url,
+      previewUrl: url,
+      fileName: `${item.name} (${i + 1})`,
+    }))
+    const salonAsset = item.assetUrl
+      ? {
+          id: 'existing-salon-asset',
+          assetUrl: item.assetUrl,
+          previewUrl: item.assetUrl,
+          fileName: item.name,
+        }
+      : null
+
     setInventoryEditForm({
       id: item.id,
       type,
       name: item.name,
+      pricingType,
       price: Number(item.price) || 0,
+      priceMax: pricingType === 'range' && item.priceMax ? Number(item.priceMax) : '',
       priceDisplay: formatCurrency(item.price),
+      priceMaxDisplay: pricingType === 'range' && item.priceMax ? formatCurrency(item.priceMax) : '',
       duration: item.duration ?? '',
       stock: type === 'beads' ? String(item.stock ?? 0) : '',
       desc: item.desc ?? item.description ?? '',
+      variant: item.variant ?? '',
+      image: salonAsset,
+      images: normalizedAssets,
       videos: itemVideos,
       initialVideos: itemVideos,
       pendingVideoUrl: '',
@@ -676,6 +891,7 @@ function AdminView({
       return
     }
 
+    const pricingType = inventoryEditForm.pricingType === 'range' ? 'range' : 'fixed'
     const priceValue = Number(inventoryEditForm.price)
     if (!priceValue || priceValue <= 0) {
       setInventoryEditFeedback({
@@ -683,6 +899,24 @@ function AdminView({
         message: 'Enter a valid price before saving.',
       })
       return
+    }
+
+    const priceMaxValue = pricingType === 'range' ? Number(inventoryEditForm.priceMax) : null
+    if (pricingType === 'range') {
+      if (!priceMaxValue || priceMaxValue <= 0) {
+        setInventoryEditFeedback({
+          type: 'error',
+          message: 'Enter a valid maximum price.',
+        })
+        return
+      }
+      if (priceMaxValue <= priceValue) {
+        setInventoryEditFeedback({
+          type: 'error',
+          message: 'Maximum price must be greater than minimum price.',
+        })
+        return
+      }
     }
 
     setIsSavingInventoryEdit(true)
@@ -694,7 +928,10 @@ function AdminView({
         : BEAD_PRODUCTS_COLLECTION
 
     const payload = {
+      pricingType,
       price: priceValue,
+      priceMax: pricingType === 'range' ? priceMaxValue : null,
+      variant: inventoryEditForm.variant?.trim() || '',
       description:
         inventoryEditForm.desc.trim() ||
         (inventoryEditForm.type === 'salon' ? 'Updated style' : 'Updated product'),
@@ -703,8 +940,14 @@ function AdminView({
 
     if (inventoryEditForm.type === 'salon') {
       payload.duration = inventoryEditForm.duration.trim() || '—'
+      payload.assetUrl = inventoryEditForm.image?.assetUrl || ''
     } else {
       payload.stock = Math.max(0, Number.parseInt(inventoryEditForm.stock, 10) || 0)
+      const images = (Array.isArray(inventoryEditForm.images) ? inventoryEditForm.images : [])
+        .map((img) => img?.assetUrl || img?.previewUrl || (typeof img === 'string' ? img : ''))
+        .filter(Boolean)
+      payload.images = images
+      payload.assetUrl = images[0] || ''
     }
 
     const currentVideos = sanitizeVideos(inventoryEditForm.videos)
@@ -739,26 +982,35 @@ function AdminView({
       pushDashboardFeedback('error', 'Add or clear the video link before saving.')
       return
     }
-    if (!salonForm.name.trim() || !salonForm.price || !salonForm.desc.trim()) {
-      pushDashboardFeedback('error', 'Please fill in the name, price, and description.')
+
+    const nextErrors = {
+      name: validateSalonField('name'),
+      price: validateSalonField('price'),
+      priceMax: validateSalonField('priceMax'),
+      desc: validateSalonField('desc'),
+    }
+    setSalonFormErrors(nextErrors)
+    if (Object.values(nextErrors).some(Boolean)) {
+      pushDashboardFeedback('error', 'Fix the highlighted hair style fields and try again.')
       return
     }
 
+    const pricingType = salonForm.pricingType === 'range' ? 'range' : 'fixed'
     const priceValue = Number(salonForm.price)
-    if (!priceValue || priceValue <= 0) {
-      pushDashboardFeedback('error', 'Please enter a valid price.')
-      return
-    }
-
+    const priceMaxValue = pricingType === 'range' ? Number(salonForm.priceMax) : null
     const bg = SALON_BACKGROUNDS[salonStyles.length % SALON_BACKGROUNDS.length]
     const assetUrl = salonForm.image?.assetUrl || ''
     const emoji = salonForm.emoji.trim() || '✨'
     const videos = sanitizeVideos(salonForm.videos)
+    const variant = salonForm.variant?.trim() || ''
 
     try {
       await addDoc(collection(db, SALON_STYLES_COLLECTION), {
         name: salonForm.name.trim(),
+        pricingType,
         price: priceValue,
+        priceMax: pricingType === 'range' ? priceMaxValue : null,
+        variant,
         duration: salonForm.duration.trim() || '—',
         description: salonForm.desc.trim() || 'New style',
         assetUrl,
@@ -769,6 +1021,12 @@ function AdminView({
       })
 
       setSalonForm(initialSalonForm)
+      setSalonFormErrors({
+        name: '',
+        price: '',
+        priceMax: '',
+        desc: '',
+      })
       setSalonUploadReset((value) => value + 1)
       pushDashboardFeedback('success', 'Hair style published successfully.')
     } catch (error) {
@@ -806,6 +1064,7 @@ function AdminView({
     const assetUrl = images[0] ?? ''
     const emoji = beadForm.emoji.trim() || '📿'
     const videos = sanitizeVideos(beadForm.videos)
+    const variant = beadForm.variant?.trim() || ''
 
     try {
       await addDoc(collection(db, BEAD_PRODUCTS_COLLECTION), {
@@ -813,10 +1072,7 @@ function AdminView({
         pricingType,
         price: priceValue,
         priceMax: pricingType === 'range' ? priceMaxValue : null,
-        priceDisplay:
-          pricingType === 'range'
-            ? `${formatCurrency(priceValue)} – ${formatCurrency(priceMaxValue)}`
-            : formatCurrency(priceValue),
+        variant,
         stock,
         description: beadForm.desc.trim() || 'New product',
         images,
@@ -990,6 +1246,7 @@ function AdminView({
         onChange={handleInventoryEditChange}
         onClose={closeInventoryEdit}
         onSubmit={handleUpdateInventoryItem}
+        onAssetUpload={handleInventoryEditAssetUpload}
       />
 
       <ReminderModal
@@ -1007,6 +1264,8 @@ function AdminView({
         <AdminGallery
           onRepublishToSalon={(asset) => handleRepublishAsset(asset, 'salon')}
           onRepublishToBeads={(asset) => handleRepublishAsset(asset, 'beads')}
+          salonStyles={salonStyles}
+          beadProducts={beadProducts}
         />
       ) : isHistory ? (
         <AdminHistory
@@ -1053,6 +1312,7 @@ function AdminView({
           ) : null}
 
           <div className="admin-body">
+            <CatalogLintBanner warnings={catalogWarnings} />
             <AdminPanel
               title="Hair Styles Gallery"
               tagLabel="SALON"
@@ -1067,21 +1327,84 @@ function AdminView({
                 <div className="a-fg">
                   <label className="a-label">Style Name</label>
                   <input
-                    className="a-input"
+                    className={salonFormErrors.name ? 'a-input invalid' : 'a-input'}
                     placeholder="Knotless Braids"
                     value={salonForm.name}
                     onChange={handleSalonChange('name')}
+                    onBlur={handleSalonFieldBlur('name')}
                   />
+                  {salonFormErrors.name ? (
+                    <span className="a-error">{salonFormErrors.name}</span>
+                  ) : null}
                 </div>
                 <div className="a-fg">
-                  <label className="a-label">Price</label>
+                  <label className="a-label">Variant (Optional)</label>
                   <input
                     className="a-input"
+                    list="salon-variant-options"
+                    placeholder="e.g. Natural, With extensions"
+                    value={salonForm.variant || ''}
+                    onChange={handleSalonChange('variant')}
+                  />
+                  <datalist id="salon-variant-options">
+                    <option value="Natural" />
+                    <option value="With extensions" />
+                    <option value="Ombre" />
+                    <option value="Shoulder length" />
+                    <option value="Waist length" />
+                  </datalist>
+                </div>
+                <div className="a-fg full">
+                  <label className="a-label">Pricing Type</label>
+                  <div className="pricing-toggle">
+                    <button
+                      type="button"
+                      className={`pricing-toggle-btn${salonForm.pricingType === 'fixed' ? ' active' : ''}`}
+                      onClick={handleSalonChange('pricingType')}
+                      value="fixed"
+                    >
+                      Fixed price
+                    </button>
+                    <button
+                      type="button"
+                      className={`pricing-toggle-btn${salonForm.pricingType === 'range' ? ' active' : ''}`}
+                      onClick={handleSalonChange('pricingType')}
+                      value="range"
+                    >
+                      Price range
+                    </button>
+                  </div>
+                </div>
+                <div className="a-fg">
+                  <label className="a-label">
+                    {salonForm.pricingType === 'range' ? 'Minimum Price' : 'Price'}
+                  </label>
+                  <input
+                    className={salonFormErrors.price ? 'a-input invalid' : 'a-input'}
                     placeholder="Kshs 120"
                     value={salonForm.priceDisplay}
                     onChange={handleSalonChange('price')}
+                    onBlur={handleSalonFieldBlur('price')}
                   />
+                  {salonFormErrors.price ? (
+                    <span className="a-error">{salonFormErrors.price}</span>
+                  ) : null}
                 </div>
+                {salonForm.pricingType === 'range' ? (
+                  <div className="a-fg">
+                    <label className="a-label">Maximum Price</label>
+                    <input
+                      className={salonFormErrors.priceMax ? 'a-input invalid' : 'a-input'}
+                      placeholder="Kshs 250"
+                      value={salonForm.priceMaxDisplay}
+                      onChange={handleSalonChange('priceMax')}
+                      onBlur={handleSalonFieldBlur('priceMax')}
+                    />
+                    {salonFormErrors.priceMax ? (
+                      <span className="a-error">{salonFormErrors.priceMax}</span>
+                    ) : null}
+                  </div>
+                ) : null}
                 <div className="a-fg">
                   <label className="a-label">Duration</label>
                   <input
@@ -1112,11 +1435,15 @@ function AdminView({
                 <div className="a-fg full">
                   <label className="a-label">Description</label>
                   <input
-                    className="a-input"
+                    className={salonFormErrors.desc ? 'a-input invalid' : 'a-input'}
                     placeholder="Short style description"
                     value={salonForm.desc}
                     onChange={handleSalonChange('desc')}
+                    onBlur={handleSalonFieldBlur('desc')}
                   />
+                  {salonFormErrors.desc ? (
+                    <span className="a-error">{salonFormErrors.desc}</span>
+                  ) : null}
                 </div>
                 {salonForm.image?.source === 'gallery' ? (
                   <div className="a-fg full">
@@ -1164,13 +1491,18 @@ function AdminView({
                         )}
                       </span>
                       <span className="name">{item.name}</span>
+                      {item.variant ? (
+                        <span className="a-variant-badge" title={`Variant: ${item.variant}`}>
+                          {item.variant}
+                        </span>
+                      ) : null}
                       {item.videos?.length > 0 ? (
                         <span className="a-video-badge" title={`${item.videos.length} video(s)`}>
                           <Video size={12} /> {item.videos.length}
                         </span>
                       ) : null}
                       <span className="sub">
-                        {formatCurrency(item.price)} · {item.duration}
+                        {formatPriceRange(item.price, item.priceMax, item.pricingType)} · {item.duration}
                       </span>
                       <div className="a-row-actions">
                         <button
@@ -1242,6 +1574,23 @@ function AdminView({
                     {beadFormErrors.name ? (
                       <span className="a-error">{beadFormErrors.name}</span>
                     ) : null}
+                  </div>
+                  <div className="a-fg">
+                    <label className="a-label">Variant (Optional)</label>
+                    <input
+                      className="a-input"
+                      list="bead-variant-options"
+                      placeholder="e.g. Hand-painted, Original finish"
+                      value={beadForm.variant || ''}
+                      onChange={handleBeadChange('variant')}
+                    />
+                    <datalist id="bead-variant-options">
+                      <option value="Hand-painted" />
+                      <option value="Original finish" />
+                      <option value="Custom color" />
+                      <option value="Glass" />
+                      <option value="Clay" />
+                    </datalist>
                   </div>
                   <div className="a-fg full">
                     <label className="a-label">Description</label>
@@ -1386,16 +1735,18 @@ function AdminView({
                         )}
                       </span>
                       <span className="name">{item.name}</span>
+                      {item.variant ? (
+                        <span className="a-variant-badge" title={`Variant: ${item.variant}`}>
+                          {item.variant}
+                        </span>
+                      ) : null}
                       {item.videos?.length > 0 ? (
                         <span className="a-video-badge" title={`${item.videos.length} video(s)`}>
                           <Video size={12} /> {item.videos.length}
                         </span>
                       ) : null}
                       <span className="sub">
-                        {(item.pricingType === 'range'
-                          ? `${formatCurrency(item.price)} – ${formatCurrency(item.priceMax)}`
-                          : formatCurrency(item.price))}{' '}
-                        ·{' '}
+                        {formatPriceRange(item.price, item.priceMax, item.pricingType)} ·{' '}
                         {item.stock === 0 ? 'Out of stock' : `${item.stock} in stock`}
                       </span>
                       <div className="a-row-actions">

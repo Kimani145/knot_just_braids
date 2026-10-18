@@ -73,7 +73,9 @@ function AdminHistory({
           tagLabel="HISTORY"
           tagClass="tag-history"
         >
-          {confirmedBookings.length > 0 ? (
+          {loadingBookings ? (
+            <div className="history-ledger">{renderSkeletonRows(3, 'history-bookings')}</div>
+          ) : confirmedBookings.length > 0 ? (
             <div className="history-ledger">
               <div className="history-ledger-header">
                 <span>Client</span>
@@ -134,7 +136,9 @@ function AdminHistory({
           tagLabel="ORDERS"
           tagClass="tag-orders"
         >
-          {fulfilledOrders.length > 0 ? (
+          {loadingOrders ? (
+            <div className="history-ledger">{renderSkeletonRows(3, 'history-orders')}</div>
+          ) : fulfilledOrders.length > 0 ? (
             <div className="history-ledger">
               <div className="history-ledger-header">
                 <span>Client</span>

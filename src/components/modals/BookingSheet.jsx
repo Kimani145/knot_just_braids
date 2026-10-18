@@ -19,7 +19,7 @@ const createInitialForm = () => ({
   notes: '',
 })
 
-function BookingSheet({ isOpen, styleName, styleImageUrl, onClose }) {
+function BookingSheet({ isOpen, styleName, onClose }) {
   const [form, setForm] = useState(createInitialForm)
   const [isSuccess, setIsSuccess] = useState(false)
   const [submitted, setSubmitted] = useState(null)

@@ -298,11 +298,6 @@ function App() {
     setCart([])
   }
 
-  const switchToAdmin = () => {
-    window.history.pushState({}, '', '/admin')
-    setCurrentView('admin')
-  }
-
   const handleLogoClick = () => {
     if (['privacy', 'terms'].includes(currentView)) {
       window.history.pushState ? window.history.pushState({}, '', '/') : null

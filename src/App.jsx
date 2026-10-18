@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { onAuthStateChanged, signOut as signOutAuth } from 'firebase/auth'
 import { collection, onSnapshot } from 'firebase/firestore'
 import { SpeedInsights } from '@vercel/speed-insights/react'
@@ -8,14 +8,16 @@ import Navigation from './components/layout/Navigation'
 import FeedToggle from './components/layout/FeedToggle'
 import Footer from './components/layout/Footer'
 import ClientView from './components/client/ClientView'
-import PrivacyPolicy from './components/client/PrivacyPolicy'
-import TermsOfService from './components/client/TermsOfService'
 import BookingSheet from './components/modals/BookingSheet'
 import CartSheet from './components/modals/CartSheet'
 import CheckoutSheet from './components/modals/CheckoutSheet'
-import AdminLogin from './components/admin/AdminLogin'
-import AdminView from './components/admin/AdminView'
+import { SkeletonRow } from './components/layout/Skeletons'
 import { auth, db } from './firebase'
+
+const AdminLogin = lazy(() => import('./components/admin/AdminLogin'))
+const AdminView = lazy(() => import('./components/admin/AdminView'))
+const PrivacyPolicy = lazy(() => import('./components/client/PrivacyPolicy'))
+const TermsOfService = lazy(() => import('./components/client/TermsOfService'))
 import {
   BEAD_BACKGROUNDS,
   BEAD_PRODUCTS_COLLECTION,
@@ -423,9 +425,13 @@ function App() {
             />
           </>
         ) : currentView === 'privacy' ? (
-          <PrivacyPolicy />
+          <Suspense fallback={<div className="container" style={{ padding: '3rem 1rem' }}><SkeletonRow /><SkeletonRow /></div>}>
+            <PrivacyPolicy />
+          </Suspense>
         ) : currentView === 'terms' ? (
-          <TermsOfService />
+          <Suspense fallback={<div className="container" style={{ padding: '3rem 1rem' }}><SkeletonRow /><SkeletonRow /></div>}>
+            <TermsOfService />
+          </Suspense>
         ) : null}
         <Footer onNavigate={handleNavigate} />
       </div>
@@ -435,29 +441,39 @@ function App() {
         className={`view${currentView === 'admin' ? ' active' : ''}`}
       >
         {currentView === 'admin' ? (
-          adminUser ? (
-            <AdminView
-              theme={theme}
-              onToggleTheme={handleToggleTheme}
-              onSignOut={handleAdminSignOut}
-              adminUser={adminUser}
-              adminMode={adminMode}
-              setAdminMode={setAdminMode}
-              salonStyles={salonStyles}
-              beadProducts={beadProducts}
-              loadingSalon={loadingSalon}
-              loadingBeads={loadingBeads}
-              loadingBookings={loadingBookings}
-              loadingOrders={loadingOrders}
-              bookings={bookings}
-              orders={orders}
-            />
-          ) : (
-            <AdminLogin
-              isCheckingSession={!isAuthReady}
-              onBackToStore={leaveAdminRoute}
-            />
-          )
+          <Suspense
+            fallback={
+              <div className="container" style={{ padding: '3rem 1rem' }}>
+                <SkeletonRow />
+                <SkeletonRow />
+                <SkeletonRow />
+              </div>
+            }
+          >
+            {adminUser ? (
+              <AdminView
+                theme={theme}
+                onToggleTheme={handleToggleTheme}
+                onSignOut={handleAdminSignOut}
+                adminUser={adminUser}
+                adminMode={adminMode}
+                setAdminMode={setAdminMode}
+                salonStyles={salonStyles}
+                beadProducts={beadProducts}
+                loadingSalon={loadingSalon}
+                loadingBeads={loadingBeads}
+                loadingBookings={loadingBookings}
+                loadingOrders={loadingOrders}
+                bookings={bookings}
+                orders={orders}
+              />
+            ) : (
+              <AdminLogin
+                isCheckingSession={!isAuthReady}
+                onBackToStore={leaveAdminRoute}
+              />
+            )}
+          </Suspense>
         ) : (
           null
         )}

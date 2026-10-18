@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { ChevronLeft, ChevronRight, Images, X } from 'lucide-react'
 import { formatPriceRange } from '../../utils/pricingUtils.js'
 import { buildWatchUrl } from '../../utils/tiktok.js'
+import { getOptimizedCloudinaryUrl } from '../../utils/cloudinaryUrl'
 import MediaPlaceholder from '../common/MediaPlaceholder'
 import TikTokPlayer from './TikTokPlayer'
 
@@ -152,7 +153,12 @@ function ProductQuickViewContent({
                     key={slide.id}
                   >
                     {slide.type === 'image' ? (
-                      <img src={slide.src} alt={`${item.name} ${index + 1}`} />
+                      <img
+                        src={getOptimizedCloudinaryUrl(slide.src, { width: 800 })}
+                        alt={`${item.name} ${index + 1}`}
+                        loading="lazy"
+                        decoding="async"
+                      />
                     ) : (
                       <TikTokPlayer
                         video={slide.video}

@@ -1,5 +1,6 @@
 import { Ban, Clock3, Images, Package, Video } from 'lucide-react'
 import { formatPriceRange } from '../../utils/pricingUtils.js'
+import { getOptimizedCloudinaryUrl } from '../../utils/cloudinaryUrl'
 import MediaPlaceholder from '../common/MediaPlaceholder'
 
 function StyleCard({
@@ -51,8 +52,10 @@ function StyleCard({
       >
         {imageUrl ? (
           <img
-            src={imageUrl}
+            src={getOptimizedCloudinaryUrl(imageUrl, { width: 450 })}
             alt={item.name}
+            loading="lazy"
+            decoding="async"
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
         ) : (

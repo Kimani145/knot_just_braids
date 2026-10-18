@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { ShoppingBag, X } from 'lucide-react'
 import formatCurrency from '../../utils/formatCurrency'
+import { getOptimizedCloudinaryUrl } from '../../utils/cloudinaryUrl'
 import MediaPlaceholder from '../common/MediaPlaceholder'
 
 function CartSheet({ isOpen, cart, setCart, onClose, onCheckout }) {
@@ -103,8 +104,10 @@ function CartSheet({ isOpen, cart, setCart, onClose, onCheckout }) {
                     <div className="cart-thumb">
                       {itemImg ? (
                         <img
-                          src={itemImg}
+                          src={getOptimizedCloudinaryUrl(itemImg, { width: 120 })}
                           alt={item.name}
+                          loading="lazy"
+                          decoding="async"
                           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                         />
                       ) : (

@@ -17,6 +17,63 @@ const getEnvVar = (key) => {
 const API_BASE_URL = getEnvVar('VITE_API_BASE_URL')
 
 /**
+ * Feature flag check for backend API checkout/booking cutover.
+ */
+export function isApiCheckoutEnabled() {
+  return getEnvVar('VITE_USE_API_CHECKOUT') === 'true'
+}
+
+/**
+ * Submit an order to the backend checkout API.
+ */
+export async function submitApiCheckout(orderPayload) {
+  const response = await fetch(`${API_BASE_URL}/api/checkout`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(orderPayload),
+  })
+
+  const data = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    const error = new Error(data.error?.message || `Checkout failed (${response.status})`)
+    error.status = response.status
+    error.code = data.error?.code
+    error.details = data.error?.details
+    throw error
+  }
+
+  return data
+}
+
+/**
+ * Submit a salon booking appointment to the backend booking API.
+ */
+export async function submitApiBooking(bookingPayload) {
+  const response = await fetch(`${API_BASE_URL}/api/booking`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(bookingPayload),
+  })
+
+  const data = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    const error = new Error(data.error?.message || `Booking failed (${response.status})`)
+    error.status = response.status
+    error.code = data.error?.code
+    error.details = data.error?.details
+    throw error
+  }
+
+  return data
+}
+
+/**
  * Fetch signed upload parameters for admin catalog uploads.
  */
 export async function fetchSignedUploadParams(authToken, folder = 'knot_just/catalog') {

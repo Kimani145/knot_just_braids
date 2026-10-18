@@ -19,6 +19,7 @@ import {
 } from '../../utils/clientDetailsStorage'
 import { sendDynamicEmail } from '../../utils/emailService'
 import { generateOrderHTML } from '../../utils/emailTemplates'
+import { isApiCheckoutEnabled, submitApiCheckout } from '../../services/api'
 import { toast } from 'sonner'
 
 const createInitialForm = () => ({
@@ -95,72 +96,102 @@ function CheckoutSheet({ isOpen, cart, onClose, onComplete }) {
     const itemSummary = cart
       .map((item) => `${item.name} x${Number(item.qty) || 0}`)
       .join(', ')
-    const orderRef = doc(collection(db, ORDERS_COLLECTION))
 
-    console.info('[CheckoutSheet] Starting order transaction...', {
-      orderId: orderRef.id,
-      itemCount: cart.length,
-      total: totals.total,
-      hasEmail: Boolean(trimmedEmail),
-      hasAddress: Boolean(trimmedAddress),
-    })
+    let orderId
+    let finalTotal = totals.total
 
-    await runTransaction(db, async (transaction) => {
-      for (const item of cart) {
-        const productRef = doc(db, BEAD_PRODUCTS_COLLECTION, String(item.id))
-        const productSnapshot = await transaction.get(productRef)
+    if (isApiCheckoutEnabled()) {
+      console.info('[CheckoutSheet] Submitting order via /api/checkout...', {
+        itemCount: cart.length,
+        hasEmail: Boolean(trimmedEmail),
+        hasAddress: Boolean(trimmedAddress),
+      })
 
-        if (!productSnapshot.exists()) {
-          throw new Error(`This item is no longer available: ${item.name}`)
-        }
-
-        const productData = productSnapshot.data()
-        const currentStock = Math.max(
-          0,
-          Number.parseInt(productData.stock, 10) || 0,
-        )
-        const quantity = Math.max(1, Number.parseInt(item.qty, 10) || 0)
-
-        if (currentStock < quantity) {
-          throw new Error(`Not enough stock for ${item.name}`)
-        }
-
-        console.info('[CheckoutSheet] Stock check passed', {
-          orderId: orderRef.id,
-          item: item.name,
-          requestedQty: quantity,
-          currentStock,
-        })
-
-        transaction.update(productRef, { stock: currentStock - quantity })
-      }
-
-      transaction.set(orderRef, {
+      const apiPayload = {
         clientName: customerName || trimmedFirstName,
         clientEmail: trimmedEmail,
         clientPhone: trimmedPhone,
-        name: customerName || trimmedFirstName,
-        firstName: trimmedFirstName,
-        lastName: trimmedLastName,
-        email: trimmedEmail,
-        phone: trimmedPhone,
         address: trimmedAddress,
-        items: itemSummary,
         lineItems: cart.map((item) => ({
-          id: item.id,
-          name: item.name,
-          qty: Math.max(1, Number.parseInt(item.qty, 10) || 0),
-          price: Number(item.price) || 0,
-          assetUrl: item.assetUrl || '',
-          emoji: item.emoji || '',
+          id: String(item.id),
+          quantity: Math.max(1, Number.parseInt(item.qty, 10) || 1),
         })),
-        total: totals.total,
-        status: 'pending',
         agreedToPolicy: true,
-        createdAt: serverTimestamp(),
+      }
+
+      const apiResult = await submitApiCheckout(apiPayload)
+      orderId = apiResult.orderId
+      finalTotal = apiResult.order?.total ?? totals.total
+      console.info('[CheckoutSheet] API checkout order committed', { orderId, total: finalTotal })
+    } else {
+      const orderRef = doc(collection(db, ORDERS_COLLECTION))
+      orderId = orderRef.id
+
+      console.info('[CheckoutSheet] Starting client order transaction...', {
+        orderId,
+        itemCount: cart.length,
+        total: totals.total,
+        hasEmail: Boolean(trimmedEmail),
+        hasAddress: Boolean(trimmedAddress),
       })
-    })
-    console.info('[CheckoutSheet] Order transaction committed', { orderId: orderRef.id })
+
+      await runTransaction(db, async (transaction) => {
+        for (const item of cart) {
+          const productRef = doc(db, BEAD_PRODUCTS_COLLECTION, String(item.id))
+          const productSnapshot = await transaction.get(productRef)
+
+          if (!productSnapshot.exists()) {
+            throw new Error(`This item is no longer available: ${item.name}`)
+          }
+
+          const productData = productSnapshot.data()
+          const currentStock = Math.max(
+            0,
+            Number.parseInt(productData.stock, 10) || 0,
+          )
+          const quantity = Math.max(1, Number.parseInt(item.qty, 10) || 0)
+
+          if (currentStock < quantity) {
+            throw new Error(`Not enough stock for ${item.name}`)
+          }
+
+          console.info('[CheckoutSheet] Stock check passed', {
+            orderId,
+            item: item.name,
+            requestedQty: quantity,
+            currentStock,
+          })
+
+          transaction.update(productRef, { stock: currentStock - quantity })
+        }
+
+        transaction.set(orderRef, {
+          clientName: customerName || trimmedFirstName,
+          clientEmail: trimmedEmail,
+          clientPhone: trimmedPhone,
+          name: customerName || trimmedFirstName,
+          firstName: trimmedFirstName,
+          lastName: trimmedLastName,
+          email: trimmedEmail,
+          phone: trimmedPhone,
+          address: trimmedAddress,
+          items: itemSummary,
+          lineItems: cart.map((item) => ({
+            id: item.id,
+            name: item.name,
+            qty: Math.max(1, Number.parseInt(item.qty, 10) || 0),
+            price: Number(item.price) || 0,
+            assetUrl: item.assetUrl || '',
+            emoji: item.emoji || '',
+          })),
+          total: totals.total,
+          status: 'pending',
+          agreedToPolicy: true,
+          createdAt: serverTimestamp(),
+        })
+      })
+      console.info('[CheckoutSheet] Order transaction committed', { orderId })
+    }
 
     // Build a richer HTML summary for EmailJS templates with item thumbnails.
     const orderItemsHtml = cart
@@ -185,27 +216,27 @@ function CheckoutSheet({ isOpen, cart, onClose, onComplete }) {
     try {
       const orderHtml = generateOrderHTML({
         clientName: customerName || trimmedFirstName,
-        orderId: orderRef.id,
-        total: formatCurrency(totals.total),
+        orderId,
+        total: formatCurrency(finalTotal),
         address: trimmedAddress,
         itemsHtml: orderItemsHtml,
       })
 
       console.info('[CheckoutSheet] Sending order confirmation email...', {
-        orderId: orderRef.id,
+        orderId,
       })
       await sendDynamicEmail({
         to_email: trimmedEmail,
         to_name: customerName || trimmedFirstName,
-        subject: `Order Confirmation #${orderRef.id}`,
+        subject: `Order Confirmation #${orderId}`,
         html_content: orderHtml,
       })
       console.info('[CheckoutSheet] Order confirmation email sent', {
-        orderId: orderRef.id,
+        orderId,
       })
     } catch (emailError) {
       console.error('[CheckoutSheet] Order email failed', {
-        orderId: orderRef.id,
+        orderId,
         message: emailError?.message,
         status: emailError?.status,
       })
@@ -213,10 +244,10 @@ function CheckoutSheet({ isOpen, cart, onClose, onComplete }) {
     }
 
     const createdOrder = {
-      id: orderRef.id,
+      id: orderId,
       name: customerName || trimmedFirstName,
       items: itemSummary,
-      total: totals.total,
+      total: finalTotal,
       status: 'pending',
     }
 
@@ -224,7 +255,7 @@ function CheckoutSheet({ isOpen, cart, onClose, onComplete }) {
     setSubmitted({
       name: trimmedFirstName,
       email: trimmedEmail,
-      orderId: orderRef.id,
+      orderId,
     })
     setIsSuccess(true)
     onComplete?.(createdOrder)

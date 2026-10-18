@@ -11,7 +11,11 @@ import {
 import { sendDynamicEmail } from '../../utils/emailService'
 import { generateBookingHTML } from '../../utils/emailTemplates'
 import { compressImage } from '../../utils/imageCompressor'
-import { uploadImageWithFallback } from '../../services/api'
+import {
+  isApiCheckoutEnabled,
+  submitApiBooking,
+  uploadImageWithFallback,
+} from '../../services/api'
 import { toast } from 'sonner'
 
 const createInitialForm = () => ({
@@ -151,26 +155,55 @@ function BookingSheet({ isOpen, styleName, onClose }) {
       }
     }
 
-    const bookingRef = await addDoc(collection(db, BOOKINGS_COLLECTION), {
-      clientName,
-      clientEmail: trimmedEmail,
-      clientPhone: trimmedPhone,
-      name: clientName,
-      firstName: trimmedFirstName,
-      lastName: trimmedLastName,
-      email: trimmedEmail,
-      phone: trimmedPhone,
-      style: styleName,
-      date: form.date,
-      time: form.time,
-      length: form.length,
-      notes: form.notes.trim(),
-      referencePhotoUrls,
-      status: 'pending',
-      agreedToPolicy: true,
-      createdAt: serverTimestamp(),
-    })
-    console.info('[BookingSheet] Booking document created', { bookingId: bookingRef.id })
+    let bookingId
+    if (isApiCheckoutEnabled()) {
+      console.info('[BookingSheet] Submitting booking via /api/booking...', {
+        styleName,
+        date: form.date,
+        time: form.time,
+        hasEmail: Boolean(trimmedEmail),
+        hasPhone: Boolean(trimmedPhone),
+      })
+
+      const apiPayload = {
+        clientName,
+        clientEmail: trimmedEmail,
+        clientPhone: trimmedPhone,
+        style: styleName,
+        date: form.date,
+        time: form.time,
+        length: form.length,
+        notes: form.notes.trim(),
+        referencePhotoUrls,
+        agreedToPolicy: true,
+      }
+
+      const apiResult = await submitApiBooking(apiPayload)
+      bookingId = apiResult.bookingId
+      console.info('[BookingSheet] API booking request created', { bookingId })
+    } else {
+      const bookingRef = await addDoc(collection(db, BOOKINGS_COLLECTION), {
+        clientName,
+        clientEmail: trimmedEmail,
+        clientPhone: trimmedPhone,
+        name: clientName,
+        firstName: trimmedFirstName,
+        lastName: trimmedLastName,
+        email: trimmedEmail,
+        phone: trimmedPhone,
+        style: styleName,
+        date: form.date,
+        time: form.time,
+        length: form.length,
+        notes: form.notes.trim(),
+        referencePhotoUrls,
+        status: 'pending',
+        agreedToPolicy: true,
+        createdAt: serverTimestamp(),
+      })
+      bookingId = bookingRef.id
+      console.info('[BookingSheet] Booking document created', { bookingId })
+    }
 
     // Send booking confirmation email - don't block on failure
     try {
@@ -183,7 +216,7 @@ function BookingSheet({ isOpen, styleName, onClose }) {
       })
 
       console.info('[BookingSheet] Sending booking confirmation email...', {
-        bookingId: bookingRef.id,
+        bookingId,
       })
       await sendDynamicEmail({
         to_email: trimmedEmail,
@@ -192,11 +225,11 @@ function BookingSheet({ isOpen, styleName, onClose }) {
         html_content: bookingHtml,
       })
       console.info('[BookingSheet] Booking confirmation email sent', {
-        bookingId: bookingRef.id,
+        bookingId,
       })
     } catch (emailError) {
       console.error('[BookingSheet] Booking email failed', {
-        bookingId: bookingRef.id,
+        bookingId,
         message: emailError?.message,
         status: emailError?.status,
       })
@@ -205,7 +238,7 @@ function BookingSheet({ isOpen, styleName, onClose }) {
 
     saveClientDetails(form)
     setSubmitted({
-      id: bookingRef.id,
+      id: bookingId,
       name: trimmedFirstName,
       style: styleName,
       date: form.date,

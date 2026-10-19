@@ -8,17 +8,24 @@ import {
   serverTimestamp,
   updateDoc,
 } from 'firebase/firestore'
-import AdminPanel from './AdminPanel'
 import StatsRow from './StatsRow'
-import ImageUploader from './ImageUploader'
 import AdminGallery from './AdminGallery'
 import SecurityDialog from './SecurityDialog'
 import ReminderModal from './ReminderModal'
 import UrgentAlerts from './UrgentAlerts'
 import AdminHistory from './AdminHistory'
+import CatalogLintBanner from './sections/CatalogLintBanner'
+import InventoryQuickEditModal from './sections/InventoryQuickEditModal'
+import SalonManager from './sections/SalonManager'
+import BeadManager from './sections/BeadManager'
+import BookingsManager from './sections/BookingsManager'
+import OrdersManager from './sections/OrdersManager'
+import PhotoPreviewModal from './sections/PhotoPreviewModal'
 import formatCurrency from '../../utils/formatCurrency'
 import { SkeletonRow } from '../layout/Skeletons'
 import { db } from '../../firebase'
+import { sendDynamicEmail } from '../../utils/emailService'
+import { generateReminderHTML } from '../../utils/emailTemplates'
 import {
   BEAD_BACKGROUNDS,
   BEAD_PRODUCTS_COLLECTION,
@@ -27,17 +34,33 @@ import {
   SALON_BACKGROUNDS,
   SALON_STYLES_COLLECTION,
 } from '../../constants/catalog'
-import { sendDynamicEmail } from '../../utils/emailService'
-import { generateReminderHTML } from '../../utils/emailTemplates'
+import {
+  Archive,
+  Image,
+  Info,
+  LayoutDashboard,
+  Moon,
+  ShieldCheck,
+  Sun,
+} from 'lucide-react'
+import { sanitizeVideos } from '../../utils/tiktok'
+import { normalizePriceInput } from '../../utils/pricingUtils'
+import { lintAllCatalogs } from '../../utils/catalogLint'
 
 const initialSalonForm = {
   name: '',
+  pricingType: 'fixed',
   price: '',
+  priceMax: '',
   priceDisplay: '',
+  priceMaxDisplay: '',
   duration: '',
   emoji: '',
   desc: '',
+  variant: '',
   image: null,
+  videos: [],
+  pendingVideoUrl: '',
 }
 
 const initialBeadForm = {
@@ -50,32 +73,30 @@ const initialBeadForm = {
   stock: '',
   emoji: '',
   desc: '',
+  variant: '',
   images: [],
+  videos: [],
+  pendingVideoUrl: '',
 }
 
 const initialInventoryEditForm = {
   id: '',
   type: 'salon',
   name: '',
+  pricingType: 'fixed',
   price: '',
+  priceMax: '',
   priceDisplay: '',
+  priceMaxDisplay: '',
   duration: '',
   stock: '',
   desc: '',
-}
-
-const normalizePriceInput = (value) => {
-  const normalized = String(value).replace(/[^0-9.]/g, '')
-  if (!normalized) {
-    return { raw: '', display: '' }
-  }
-
-  const parsed = Number.parseFloat(normalized)
-  if (Number.isNaN(parsed)) {
-    return { raw: '', display: '' }
-  }
-
-  return { raw: parsed, display: formatCurrency(parsed) }
+  variant: '',
+  image: null,
+  images: [],
+  videos: [],
+  initialVideos: [],
+  pendingVideoUrl: '',
 }
 
 const stripFileExtension = (fileName = '') =>
@@ -102,112 +123,6 @@ const normalizeWhatsappPhone = (phone) => {
   }
 
   return digits
-}
-
-function InventoryQuickEditModal({
-  editForm,
-  feedback,
-  isSaving,
-  onChange,
-  onClose,
-  onSubmit,
-}) {
-  const isOpen = Boolean(editForm.id)
-
-  return (
-    <div className={`overlay${isOpen ? ' open' : ''}`}>
-      <div className="sheet quick-edit-sheet">
-        <div className="sheet-header">
-          <h2>
-            {editForm.type === 'salon' ? 'Edit Hair Style' : 'Edit Bead Product'}
-          </h2>
-          <button className="close-btn" onClick={onClose} type="button">
-            ✕
-          </button>
-        </div>
-
-        {isOpen ? (
-          <form className="form-stack" onSubmit={onSubmit}>
-            <div className="note">
-              Updating <strong>{editForm.name}</strong>
-            </div>
-
-            <div className="fg">
-              <label>Price</label>
-              <input
-                type="text"
-                value={editForm.priceDisplay}
-                onChange={onChange('price')}
-                placeholder="Kshs 120"
-              />
-            </div>
-
-            {editForm.type === 'salon' ? (
-              <div className="fg">
-                <label>Duration</label>
-                <input
-                  type="text"
-                  value={editForm.duration}
-                  onChange={onChange('duration')}
-                  placeholder="5–7 hrs"
-                />
-              </div>
-            ) : (
-              <div className="fg">
-                <label>Stock Quantity</label>
-                <input
-                  type="number"
-                  value={editForm.stock}
-                  onChange={onChange('stock')}
-                  placeholder="10"
-                />
-              </div>
-            )}
-
-            <div className="fg">
-              <label>Description</label>
-              <textarea
-                value={editForm.desc}
-                onChange={onChange('desc')}
-                placeholder="Short product or style description"
-              />
-            </div>
-
-            {feedback ? (
-              <p
-                className={`admin-auth-feedback ${
-                  feedback.type === 'error'
-                    ? 'admin-auth-feedback-error'
-                    : 'admin-auth-feedback-success'
-                }`}
-              >
-                {feedback.message}
-              </p>
-            ) : null}
-
-            <div className="security-actions">
-              <button
-                className="btn btn-primary"
-                type="submit"
-                disabled={isSaving}
-                style={{
-                  background:
-                    editForm.type === 'salon'
-                      ? 'var(--salon-accent)'
-                      : 'var(--bead-accent)',
-                }}
-              >
-                {isSaving ? 'Saving...' : 'Save Changes'}
-              </button>
-              <button className="btn btn-outline" type="button" onClick={onClose}>
-                Cancel
-              </button>
-            </div>
-          </form>
-        ) : null}
-      </div>
-    </div>
-  )
 }
 
 const tourSteps = [
@@ -320,6 +235,12 @@ function AdminView({
       setRunTour(true)
     }, 100)
   }
+  const [salonFormErrors, setSalonFormErrors] = useState({
+    name: '',
+    price: '',
+    priceMax: '',
+    desc: '',
+  })
   const [beadForm, setBeadForm] = useState(initialBeadForm)
   const [beadFormErrors, setBeadFormErrors] = useState({
     name: '',
@@ -364,6 +285,11 @@ function AdminView({
   const outOfStockItems = useMemo(
     () => beadProducts.filter((product) => product.stock === 0),
     [beadProducts],
+  )
+
+  const catalogWarnings = useMemo(
+    () => lintAllCatalogs(salonStyles, beadProducts),
+    [salonStyles, beadProducts],
   )
 
   const isGallery = adminMode === 'gallery'
@@ -468,16 +394,65 @@ function AdminView({
     }
   }
 
+  const validateSalonField = (field, formState = salonForm) => {
+    const pricingType = formState.pricingType === 'range' ? 'range' : 'fixed'
+    const priceValue = Number(formState.price)
+    const priceMaxValue = Number(formState.priceMax)
+
+    if (field === 'name' && !formState.name.trim()) {
+      return 'Style name is required.'
+    }
+    if (field === 'desc' && !formState.desc.trim()) {
+      return 'Description is required.'
+    }
+    if (field === 'price') {
+      if (!priceValue || priceValue <= 0) return 'Enter a valid minimum price.'
+      if (pricingType === 'range' && priceMaxValue <= priceValue) {
+        return 'Minimum price must be lower than maximum price.'
+      }
+    }
+    if (field === 'priceMax' && pricingType === 'range') {
+      if (!priceMaxValue || priceMaxValue <= 0) return 'Enter a valid maximum price.'
+      if (priceMaxValue <= priceValue) return 'Maximum price must be greater than minimum price.'
+    }
+    return ''
+  }
+
+  const handleSalonFieldBlur = (field) => () => {
+    setSalonFormErrors((prev) => ({
+      ...prev,
+      [field]: validateSalonField(field),
+    }))
+  }
+
   const handleSalonChange = (field) => (event) => {
     const { value } = event.target
-    if (field === 'price') {
+    if (field === 'price' || field === 'priceMax') {
       const normalized = normalizePriceInput(value)
       setSalonForm((prev) => ({
         ...prev,
-        price: normalized.raw,
-        priceDisplay: normalized.display,
+        [field]: normalized.raw,
+        [field === 'price' ? 'priceDisplay' : 'priceMaxDisplay']: normalized.display,
       }))
+      setSalonFormErrors((prev) => ({ ...prev, [field]: '' }))
       return
+    }
+
+    if (field === 'pricingType') {
+      setSalonForm((prev) => ({
+        ...prev,
+        pricingType: value === 'range' ? 'range' : 'fixed',
+        priceMax:
+          value === 'range' ? prev.priceMax : '',
+        priceMaxDisplay:
+          value === 'range' ? prev.priceMaxDisplay : '',
+      }))
+      setSalonFormErrors((prev) => ({ ...prev, price: '', priceMax: '' }))
+      return
+    }
+
+    if (field === 'name' || field === 'desc') {
+      setSalonFormErrors((prev) => ({ ...prev, [field]: '' }))
     }
 
     setSalonForm((prev) => ({ ...prev, [field]: value }))
@@ -548,17 +523,42 @@ function AdminView({
 
   const handleInventoryEditChange = (field) => (event) => {
     const { value } = event.target
-    if (field === 'price') {
+    if (field === 'price' || field === 'priceMax') {
       const normalized = normalizePriceInput(value)
       setInventoryEditForm((prev) => ({
         ...prev,
-        price: normalized.raw,
-        priceDisplay: normalized.display,
+        [field]: normalized.raw,
+        [field === 'price' ? 'priceDisplay' : 'priceMaxDisplay']: normalized.display,
+      }))
+      return
+    }
+
+    if (field === 'pricingType') {
+      setInventoryEditForm((prev) => ({
+        ...prev,
+        pricingType: value === 'range' ? 'range' : 'fixed',
+        priceMax: value === 'range' ? prev.priceMax : '',
+        priceMaxDisplay: value === 'range' ? prev.priceMaxDisplay : '',
       }))
       return
     }
 
     setInventoryEditForm((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const handleInventoryEditAssetUpload = (asset, formType) => {
+    if (formType === 'salon') {
+      setInventoryEditForm((prev) => ({
+        ...prev,
+        image: asset || null,
+      }))
+      return
+    }
+
+    setInventoryEditForm((prev) => ({
+      ...prev,
+      images: Array.isArray(asset) ? asset : asset ? [asset] : [],
+    }))
   }
 
   const handleAssetUpload = (asset, formType) => {
@@ -621,15 +621,46 @@ function AdminView({
   }
 
   const openInventoryEdit = (type, item) => {
+    const itemVideos = sanitizeVideos(item.videos)
+    const pricingType = item.pricingType === 'range' ? 'range' : 'fixed'
+    const itemImages = Array.isArray(item.images) && item.images.length > 0
+      ? item.images.filter(Boolean)
+      : item.assetUrl
+        ? [item.assetUrl]
+        : []
+    const normalizedAssets = itemImages.map((url, i) => ({
+      id: `existing-asset-${i}`,
+      assetUrl: url,
+      previewUrl: url,
+      fileName: `${item.name} (${i + 1})`,
+    }))
+    const salonAsset = item.assetUrl
+      ? {
+          id: 'existing-salon-asset',
+          assetUrl: item.assetUrl,
+          previewUrl: item.assetUrl,
+          fileName: item.name,
+        }
+      : null
+
     setInventoryEditForm({
       id: item.id,
       type,
       name: item.name,
+      pricingType,
       price: Number(item.price) || 0,
+      priceMax: pricingType === 'range' && item.priceMax ? Number(item.priceMax) : '',
       priceDisplay: formatCurrency(item.price),
+      priceMaxDisplay: pricingType === 'range' && item.priceMax ? formatCurrency(item.priceMax) : '',
       duration: item.duration ?? '',
       stock: type === 'beads' ? String(item.stock ?? 0) : '',
       desc: item.desc ?? item.description ?? '',
+      variant: item.variant ?? '',
+      image: salonAsset,
+      images: normalizedAssets,
+      videos: itemVideos,
+      initialVideos: itemVideos,
+      pendingVideoUrl: '',
     })
     setInventoryEditFeedback(null)
   }
@@ -642,6 +673,15 @@ function AdminView({
   const handleUpdateInventoryItem = async (event) => {
     event.preventDefault()
 
+    if (inventoryEditForm.pendingVideoUrl?.trim()) {
+      setInventoryEditFeedback({
+        type: 'error',
+        message: 'Add or clear the video link before saving.',
+      })
+      return
+    }
+
+    const pricingType = inventoryEditForm.pricingType === 'range' ? 'range' : 'fixed'
     const priceValue = Number(inventoryEditForm.price)
     if (!priceValue || priceValue <= 0) {
       setInventoryEditFeedback({
@@ -649,6 +689,24 @@ function AdminView({
         message: 'Enter a valid price before saving.',
       })
       return
+    }
+
+    const priceMaxValue = pricingType === 'range' ? Number(inventoryEditForm.priceMax) : null
+    if (pricingType === 'range') {
+      if (!priceMaxValue || priceMaxValue <= 0) {
+        setInventoryEditFeedback({
+          type: 'error',
+          message: 'Enter a valid maximum price.',
+        })
+        return
+      }
+      if (priceMaxValue <= priceValue) {
+        setInventoryEditFeedback({
+          type: 'error',
+          message: 'Maximum price must be greater than minimum price.',
+        })
+        return
+      }
     }
 
     setIsSavingInventoryEdit(true)
@@ -660,7 +718,10 @@ function AdminView({
         : BEAD_PRODUCTS_COLLECTION
 
     const payload = {
+      pricingType,
       price: priceValue,
+      priceMax: pricingType === 'range' ? priceMaxValue : null,
+      variant: inventoryEditForm.variant?.trim() || '',
       description:
         inventoryEditForm.desc.trim() ||
         (inventoryEditForm.type === 'salon' ? 'Updated style' : 'Updated product'),
@@ -669,8 +730,20 @@ function AdminView({
 
     if (inventoryEditForm.type === 'salon') {
       payload.duration = inventoryEditForm.duration.trim() || '—'
+      payload.assetUrl = inventoryEditForm.image?.assetUrl || ''
     } else {
       payload.stock = Math.max(0, Number.parseInt(inventoryEditForm.stock, 10) || 0)
+      const images = (Array.isArray(inventoryEditForm.images) ? inventoryEditForm.images : [])
+        .map((img) => img?.assetUrl || img?.previewUrl || (typeof img === 'string' ? img : ''))
+        .filter(Boolean)
+      payload.images = images
+      payload.assetUrl = images[0] || ''
+    }
+
+    const currentVideos = sanitizeVideos(inventoryEditForm.videos)
+    const initialVideos = sanitizeVideos(inventoryEditForm.initialVideos)
+    if (JSON.stringify(currentVideos) !== JSON.stringify(initialVideos)) {
+      payload.videos = currentVideos
     }
 
     try {
@@ -695,34 +768,55 @@ function AdminView({
 
   const handleAddSalon = async (event) => {
     event.preventDefault()
-    if (!salonForm.name.trim() || !salonForm.price || !salonForm.desc.trim()) {
-      pushDashboardFeedback('error', 'Please fill in the name, price, and description.')
+    if (salonForm.pendingVideoUrl?.trim()) {
+      pushDashboardFeedback('error', 'Add or clear the video link before saving.')
       return
     }
 
+    const nextErrors = {
+      name: validateSalonField('name'),
+      price: validateSalonField('price'),
+      priceMax: validateSalonField('priceMax'),
+      desc: validateSalonField('desc'),
+    }
+    setSalonFormErrors(nextErrors)
+    if (Object.values(nextErrors).some(Boolean)) {
+      pushDashboardFeedback('error', 'Fix the highlighted hair style fields and try again.')
+      return
+    }
+
+    const pricingType = salonForm.pricingType === 'range' ? 'range' : 'fixed'
     const priceValue = Number(salonForm.price)
-    if (!priceValue || priceValue <= 0) {
-      pushDashboardFeedback('error', 'Please enter a valid price.')
-      return
-    }
-
+    const priceMaxValue = pricingType === 'range' ? Number(salonForm.priceMax) : null
     const bg = SALON_BACKGROUNDS[salonStyles.length % SALON_BACKGROUNDS.length]
     const assetUrl = salonForm.image?.assetUrl || ''
     const emoji = salonForm.emoji.trim() || '✨'
+    const videos = sanitizeVideos(salonForm.videos)
+    const variant = salonForm.variant?.trim() || ''
 
     try {
       await addDoc(collection(db, SALON_STYLES_COLLECTION), {
         name: salonForm.name.trim(),
+        pricingType,
         price: priceValue,
+        priceMax: pricingType === 'range' ? priceMaxValue : null,
+        variant,
         duration: salonForm.duration.trim() || '—',
         description: salonForm.desc.trim() || 'New style',
         assetUrl,
         emoji,
         bg,
+        videos,
         createdAt: serverTimestamp(),
       })
 
       setSalonForm(initialSalonForm)
+      setSalonFormErrors({
+        name: '',
+        price: '',
+        priceMax: '',
+        desc: '',
+      })
       setSalonUploadReset((value) => value + 1)
       pushDashboardFeedback('success', 'Hair style published successfully.')
     } catch (error) {
@@ -733,6 +827,10 @@ function AdminView({
 
   const handleAddBead = async (event) => {
     event.preventDefault()
+    if (beadForm.pendingVideoUrl?.trim()) {
+      pushDashboardFeedback('error', 'Add or clear the video link before saving.')
+      return
+    }
     const nextErrors = {
       name: validateBeadField('name'),
       price: validateBeadField('price'),
@@ -755,6 +853,8 @@ function AdminView({
       .filter(Boolean)
     const assetUrl = images[0] ?? ''
     const emoji = beadForm.emoji.trim() || '📿'
+    const videos = sanitizeVideos(beadForm.videos)
+    const variant = beadForm.variant?.trim() || ''
 
     try {
       await addDoc(collection(db, BEAD_PRODUCTS_COLLECTION), {
@@ -762,16 +862,14 @@ function AdminView({
         pricingType,
         price: priceValue,
         priceMax: pricingType === 'range' ? priceMaxValue : null,
-        priceDisplay:
-          pricingType === 'range'
-            ? `${formatCurrency(priceValue)} – ${formatCurrency(priceMaxValue)}`
-            : formatCurrency(priceValue),
+        variant,
         stock,
         description: beadForm.desc.trim() || 'New product',
         images,
         assetUrl,
         emoji,
         bg,
+        videos,
         createdAt: serverTimestamp(),
       })
 
@@ -835,27 +933,6 @@ function AdminView({
     handleOpenReminder(item, type)
   }
 
-  const renderGallerySelection = (formType, asset) => {
-    if (!asset?.assetUrl || asset.source !== 'gallery') return null
-
-    return (
-      <div className="selected-asset-card">
-        <img src={asset.assetUrl} alt={asset.fileName || 'Selected asset'} />
-        <div className="selected-asset-copy">
-          <strong>{asset.fileName || 'Selected gallery asset'}</strong>
-          <span>{asset.internalNote || 'This asset will be used when you publish.'}</span>
-        </div>
-        <button
-          className="btn btn-outline btn-sm"
-          type="button"
-          onClick={() => handleClearSelectedAsset(formType)}
-        >
-          Clear
-        </button>
-      </div>
-    )
-  }
-
   return (
     <>
       <Joyride
@@ -898,26 +975,37 @@ function AdminView({
         <div className="admin-logo">Knot Just — Command Center</div>
         <div className="admin-nav-right">
           <button className="a-btn tour-theme-btn" onClick={onToggleTheme}>
-            {theme === 'dark' ? '☀️' : '🌙'} Theme
+            {theme === 'dark' ? (
+              <Sun size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+            ) : (
+              <Moon size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+            )}{' '}
+            Theme
           </button>
           <button className="a-btn tour-security-btn" onClick={() => setIsSecurityOpen(true)}>
-            🔐 Security
+            <ShieldCheck size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} /> Security
           </button>
           <button className="a-btn tour-walkthrough-btn" onClick={startTour}>
-            ℹ️ Walkthrough
+            <Info size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} /> Walkthrough
           </button>
           <button className="a-btn tour-dashboard-btn" onClick={() => handleToggleViewMode('dashboard')} style={{
             opacity: viewMode === 'dashboard' ? 1 : 0.6,
           }}>
-            📊 Dashboard
+            <LayoutDashboard size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} /> Dashboard
           </button>
           <button className="a-btn tour-history-btn" onClick={() => handleToggleViewMode('history')} style={{
             opacity: viewMode === 'history' ? 1 : 0.6,
           }}>
-            🗄️ History
+            <Archive size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} /> History
           </button>
           <button className="a-btn tour-gallery-btn" onClick={handleToggleMode}>
-            {isGallery ? '← Dashboard' : '🖼️ Asset Gallery'}
+            {isGallery ? (
+              '← Dashboard'
+            ) : (
+              <>
+                <Image size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} /> Asset Gallery
+              </>
+            )}
           </button>
           <button className="a-btn danger tour-exit-btn" onClick={onSignOut}>
             ← Exit Admin
@@ -938,6 +1026,7 @@ function AdminView({
         onChange={handleInventoryEditChange}
         onClose={closeInventoryEdit}
         onSubmit={handleUpdateInventoryItem}
+        onAssetUpload={handleInventoryEditAssetUpload}
       />
 
       <ReminderModal
@@ -955,6 +1044,8 @@ function AdminView({
         <AdminGallery
           onRepublishToSalon={(asset) => handleRepublishAsset(asset, 'salon')}
           onRepublishToBeads={(asset) => handleRepublishAsset(asset, 'beads')}
+          salonStyles={salonStyles}
+          beadProducts={beadProducts}
         />
       ) : isHistory ? (
         <AdminHistory
@@ -1001,528 +1092,78 @@ function AdminView({
           ) : null}
 
           <div className="admin-body">
-            <AdminPanel
-              title="Hair Styles Gallery"
-              tagLabel="SALON"
-              tagClass="tag-salon"
-              panelId="admin-salon-panel"
-            >
-              <form
-                className="admin-form tour-add-hair-form"
-                style={{ marginBottom: '1rem' }}
-                onSubmit={handleAddSalon}
-              >
-                <div className="a-fg">
-                  <label className="a-label">Style Name</label>
-                  <input
-                    className="a-input"
-                    placeholder="Knotless Braids"
-                    value={salonForm.name}
-                    onChange={handleSalonChange('name')}
-                  />
-                </div>
-                <div className="a-fg">
-                  <label className="a-label">Price</label>
-                  <input
-                    className="a-input"
-                    placeholder="Kshs 120"
-                    value={salonForm.priceDisplay}
-                    onChange={handleSalonChange('price')}
-                  />
-                </div>
-                <div className="a-fg">
-                  <label className="a-label">Duration</label>
-                  <input
-                    className="a-input"
-                    placeholder="5–7 hrs"
-                    value={salonForm.duration}
-                    onChange={handleSalonChange('duration')}
-                  />
-                </div>
-                <div className="a-fg">
-                  <label className="a-label">Style Image</label>
-                  <ImageUploader
-                    onUpload={(asset) => handleAssetUpload(asset, 'salon')}
-                    resetSignal={salonUploadReset}
-                    selectedAsset={salonForm.image}
-                  />
-                </div>
-                <div className="a-fg">
-                  <label className="a-label">Emoji (Fallback)</label>
-                  <input
-                    className="a-input"
-                    placeholder="🌿"
-                    maxLength={2}
-                    value={salonForm.emoji}
-                    onChange={handleSalonChange('emoji')}
-                  />
-                </div>
-                <div className="a-fg full">
-                  <label className="a-label">Description</label>
-                  <input
-                    className="a-input"
-                    placeholder="Short style description"
-                    value={salonForm.desc}
-                    onChange={handleSalonChange('desc')}
-                  />
-                </div>
-                {salonForm.image?.source === 'gallery' ? (
-                  <div className="a-fg full">
-                    {renderGallerySelection('salon', salonForm.image)}
-                  </div>
-                ) : null}
-                <div className="a-fg full">
-                  <button className="a-add-btn" type="submit">
-                    ＋ Add Hair Style
-                  </button>
-                </div>
-              </form>
+            <CatalogLintBanner warnings={catalogWarnings} />
+            <SalonManager
+              salonStyles={salonStyles}
+              loadingSalon={loadingSalon}
+              salonForm={salonForm}
+              salonFormErrors={salonFormErrors}
+              salonUploadReset={salonUploadReset}
+              onSalonChange={handleSalonChange}
+              onSalonFieldBlur={handleSalonFieldBlur}
+              onAddSalon={handleAddSalon}
+              onAssetUpload={handleAssetUpload}
+              onOpenInventoryEdit={openInventoryEdit}
+              onDeleteSalon={handleDeleteSalon}
+              onUpdateVideos={(nextVideos) =>
+                setSalonForm((prev) => ({ ...prev, videos: nextVideos }))
+              }
+              onUpdatePendingVideoUrl={(nextUrl) =>
+                setSalonForm((prev) => ({ ...prev, pendingVideoUrl: nextUrl }))
+              }
+              onClearSelectedAsset={handleClearSelectedAsset}
+              getItemAssetUrl={getItemAssetUrl}
+              renderSkeletonRows={renderSkeletonRows}
+            />
 
-              <div id="adminSalonList">
-                {loadingSalon ? (
-                  renderSkeletonRows(4, 'salon')
-                ) : salonStyles.length ? (
-                  salonStyles.map((item) => (
-                    <div className="a-item-row" key={item.id}>
-                      <span className="emoji">
-                        {getItemAssetUrl(item) ? (
-                          <img
-                            src={getItemAssetUrl(item)}
-                            alt={item.name}
-                            style={{
-                              width: '24px',
-                              height: '24px',
-                              borderRadius: '0.35rem',
-                              objectFit: 'cover',
-                            }}
-                          />
-                        ) : (
-                          item.emoji
-                        )}
-                      </span>
-                      <span className="name">{item.name}</span>
-                      <span className="sub">
-                        {formatCurrency(item.price)} · {item.duration}
-                      </span>
-                      <div className="a-row-actions">
-                        <button
-                          className="a-edit"
-                          onClick={() => openInventoryEdit('salon', item)}
-                          type="button"
-                          aria-label={`Edit ${item.name}`}
-                        >
-                          ✎
-                        </button>
-                        <button
-                          className="a-del"
-                          onClick={() => handleDeleteSalon(item.id)}
-                          type="button"
-                          aria-label={`Delete ${item.name}`}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p style={{ opacity: 0.4, fontSize: '0.8rem' }}>
-                    No styles added yet.
-                  </p>
-                )}
-              </div>
-            </AdminPanel>
+            <BeadManager
+              beadProducts={beadProducts}
+              loadingBeads={loadingBeads}
+              lowStockItems={lowStockItems}
+              outOfStockItems={outOfStockItems}
+              beadForm={beadForm}
+              beadFormErrors={beadFormErrors}
+              beadUploadReset={beadUploadReset}
+              onBeadChange={handleBeadChange}
+              onBeadFieldBlur={handleBeadFieldBlur}
+              onAddBead={handleAddBead}
+              onAssetUpload={handleAssetUpload}
+              onOpenInventoryEdit={openInventoryEdit}
+              onDeleteBead={handleDeleteBead}
+              onUpdateVideos={(nextVideos) =>
+                setBeadForm((prev) => ({ ...prev, videos: nextVideos }))
+              }
+              onUpdatePendingVideoUrl={(nextUrl) =>
+                setBeadForm((prev) => ({ ...prev, pendingVideoUrl: nextUrl }))
+              }
+              onClearSelectedAsset={handleClearSelectedAsset}
+              getItemAssetUrl={getItemAssetUrl}
+              renderSkeletonRows={renderSkeletonRows}
+            />
 
-            <AdminPanel
-              title="Beadwork Products"
-              tagLabel="SHOP"
-              tagClass="tag-beads"
-              panelId="admin-beads-panel"
-            >
-              {lowStockItems.length || outOfStockItems.length ? (
-                <div className="inventory-alert-stack">
-                  {outOfStockItems.length ? (
-                    <div className="inventory-alert danger">
-                      <strong>Out of Stock</strong>
-                      <span>{outOfStockItems.map((item) => item.name).join(', ')}</span>
-                    </div>
-                  ) : null}
-                  {lowStockItems.length ? (
-                    <div className="inventory-alert warning">
-                      <strong>Low Stock</strong>
-                      <span>{lowStockItems.map((item) => item.name).join(', ')}</span>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
+            <BookingsManager
+              pendingBookings={pendingBookings}
+              loadingBookings={loadingBookings}
+              onBookingStatus={handleBookingStatus}
+              onReminder={handleReminder}
+              onPreviewPhoto={setPreviewPhoto}
+              renderSkeletonRows={renderSkeletonRows}
+            />
 
-              <form
-                className="admin-form tour-add-bead-form"
-                style={{ marginBottom: '1rem' }}
-                onSubmit={handleAddBead}
-              >
-                <div className="a-group full">
-                  <h4 className="a-group-title">Basics</h4>
-                  <div className="a-fg">
-                    <label className="a-label">Product Name</label>
-                    <input
-                      className={beadFormErrors.name ? 'a-input invalid' : 'a-input'}
-                      placeholder="Waist Beads"
-                      value={beadForm.name}
-                      onChange={handleBeadChange('name')}
-                      onBlur={handleBeadFieldBlur('name')}
-                    />
-                    {beadFormErrors.name ? (
-                      <span className="a-error">{beadFormErrors.name}</span>
-                    ) : null}
-                  </div>
-                  <div className="a-fg full">
-                    <label className="a-label">Description</label>
-                    <input
-                      className={beadFormErrors.desc ? 'a-input invalid' : 'a-input'}
-                      placeholder="Short product description"
-                      value={beadForm.desc}
-                      onChange={handleBeadChange('desc')}
-                      onBlur={handleBeadFieldBlur('desc')}
-                    />
-                    {beadFormErrors.desc ? (
-                      <span className="a-error">{beadFormErrors.desc}</span>
-                    ) : null}
-                  </div>
-                  <div className="a-fg">
-                    <label className="a-label">Emoji (Fallback)</label>
-                    <input
-                      className="a-input"
-                      placeholder="📿"
-                      maxLength={2}
-                      value={beadForm.emoji}
-                      onChange={handleBeadChange('emoji')}
-                    />
-                  </div>
-                </div>
-                <div className="a-group full">
-                  <h4 className="a-group-title">Media</h4>
-                  <div className="a-fg full">
-                    <label className="a-label">Product Images</label>
-                    <ImageUploader
-                      onUpload={(asset) => handleAssetUpload(asset, 'beads')}
-                      resetSignal={beadUploadReset}
-                      selectedAssets={beadForm.images}
-                      allowMultiple
-                    />
-                  </div>
-                </div>
-                <div className="a-group full">
-                  <h4 className="a-group-title">Pricing & Stock</h4>
-                  <div className="pricing-toggle">
-                    <button
-                      type="button"
-                      className={`pricing-toggle-btn${beadForm.pricingType === 'fixed' ? ' active' : ''}`}
-                      onClick={handleBeadChange('pricingType')}
-                      value="fixed"
-                    >
-                      Fixed price
-                    </button>
-                    <button
-                      type="button"
-                      className={`pricing-toggle-btn${beadForm.pricingType === 'range' ? ' active' : ''}`}
-                      onClick={handleBeadChange('pricingType')}
-                      value="range"
-                    >
-                      Price range
-                    </button>
-                  </div>
-                  <div className="a-fg">
-                    <label className="a-label">
-                      {beadForm.pricingType === 'range' ? 'Minimum Price' : 'Price'}
-                    </label>
-                    <input
-                      className={beadFormErrors.price ? 'a-input invalid' : 'a-input'}
-                      placeholder="Kshs 25"
-                      value={beadForm.priceDisplay}
-                      onChange={handleBeadChange('price')}
-                      onBlur={handleBeadFieldBlur('price')}
-                    />
-                    {beadFormErrors.price ? (
-                      <span className="a-error">{beadFormErrors.price}</span>
-                    ) : null}
-                  </div>
-                  {beadForm.pricingType === 'range' ? (
-                    <div className="a-fg">
-                      <label className="a-label">Maximum Price</label>
-                      <input
-                        className={beadFormErrors.priceMax ? 'a-input invalid' : 'a-input'}
-                        placeholder="Kshs 40"
-                        value={beadForm.priceMaxDisplay}
-                        onChange={handleBeadChange('priceMax')}
-                        onBlur={handleBeadFieldBlur('priceMax')}
-                      />
-                      {beadFormErrors.priceMax ? (
-                        <span className="a-error">{beadFormErrors.priceMax}</span>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  <div className="a-fg">
-                    <label className="a-label">Stock Qty</label>
-                    <input
-                      className="a-input"
-                      placeholder="10"
-                      type="number"
-                      value={beadForm.stock}
-                      onChange={handleBeadChange('stock')}
-                    />
-                  </div>
-                </div>
-                {beadForm.images?.[0]?.source === 'gallery' ? (
-                  <div className="a-fg full">
-                    {renderGallerySelection('beads', beadForm.images[0])}
-                  </div>
-                ) : null}
-                <div className="a-fg full">
-                  <button className="a-add-btn bead-add" type="submit">
-                    ＋ Add Bead Product
-                  </button>
-                </div>
-              </form>
-
-              <div id="adminBeadList">
-                {loadingBeads ? (
-                  renderSkeletonRows(4, 'beads')
-                ) : beadProducts.length ? (
-                  beadProducts.map((item) => (
-                    <div className="a-item-row" key={item.id}>
-                      <span className="emoji">
-                        {getItemAssetUrl(item) ? (
-                          <img
-                            src={getItemAssetUrl(item)}
-                            alt={item.name}
-                            style={{
-                              width: '24px',
-                              height: '24px',
-                              borderRadius: '0.35rem',
-                              objectFit: 'cover',
-                            }}
-                          />
-                        ) : (
-                          item.emoji
-                        )}
-                      </span>
-                      <span className="name">{item.name}</span>
-                      <span className="sub">
-                        {(item.pricingType === 'range'
-                          ? `${formatCurrency(item.price)} – ${formatCurrency(item.priceMax)}`
-                          : formatCurrency(item.price))}{' '}
-                        ·{' '}
-                        {item.stock === 0 ? 'Out of stock' : `${item.stock} in stock`}
-                      </span>
-                      <div className="a-row-actions">
-                        <button
-                          className="a-edit"
-                          onClick={() => openInventoryEdit('beads', item)}
-                          type="button"
-                          aria-label={`Edit ${item.name}`}
-                        >
-                          ✎
-                        </button>
-                        <button
-                          className="a-del"
-                          onClick={() => handleDeleteBead(item.id)}
-                          type="button"
-                          aria-label={`Delete ${item.name}`}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p style={{ opacity: 0.4, fontSize: '0.8rem' }}>
-                    No products added yet.
-                  </p>
-                )}
-              </div>
-            </AdminPanel>
-
-            <AdminPanel
-              title="Appointment Requests"
-              tagLabel="BOOKINGS"
-              tagClass="tag-bookings"
-              className="tour-appointments-panel"
-            >
-              <div id="adminBookings" className="tour-appointments-actions">
-                {loadingBookings ? (
-                  renderSkeletonRows(3, 'bookings')
-                ) : pendingBookings.length ? (
-                  pendingBookings.map((item) => {
-                    const chipClass =
-                      item.status === 'pending'
-                        ? 'sc-pending'
-                        : item.status === 'confirmed'
-                          ? 'sc-confirmed'
-                          : 'sc-declined'
-
-                    return (
-                      <div className="b-row" key={item.id}>
-                        <div className="b-top">
-                          <span className="b-name">{item.name}</span>
-                          <span className={`status-chip ${chipClass}`}>
-                            {item.status.toUpperCase()}
-                          </span>
-                        </div>
-                        <div className="b-sub">
-                          {item.style} · {item.date} at {item.time}
-                        </div>
-                        {item.notes && (
-                          <div style={{ fontSize: '0.85rem', color: 'var(--text-color)', opacity: 0.8, marginTop: '4px' }}>
-                            <strong>Notes:</strong> {item.notes}
-                          </div>
-                        )}
-                        {((item.referencePhotoUrls && item.referencePhotoUrls.length > 0) || item.referencePhotoUrl) && (
-                          <div style={{ marginTop: '8px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                            {(item.referencePhotoUrls || [item.referencePhotoUrl]).map((url, i) => url && (
-                              <img
-                                key={i}
-                                src={url}
-                                alt="Reference"
-                                style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px', cursor: 'pointer', border: '1px solid var(--border-color)' }}
-                                onClick={() => setPreviewPhoto(url)}
-                                title="Click to view reference"
-                              />
-                            ))}
-                          </div>
-                        )}
-                        {item.status === 'pending' ? (
-                          <div className="b-actions">
-                            <button
-                              className="confirm-btn cb-confirm"
-                              type="button"
-                              onClick={() => handleBookingStatus(item.id, 'confirmed')}
-                            >
-                              ✓ Confirm
-                            </button>
-                            <button
-                              className="confirm-btn cb-decline"
-                              type="button"
-                              onClick={() => handleBookingStatus(item.id, 'declined')}
-                            >
-                              ✕ Decline
-                            </button>
-                            <button
-                              className="confirm-btn"
-                              type="button"
-                              onClick={() => handleReminder(item, 'booking')}
-                            >
-                              🔔 Remind
-                            </button>
-                          </div>
-                        ) : null}
-                      </div>
-                    )
-                  })
-                ) : (
-                  <p style={{ opacity: 0.4, fontSize: '0.8rem' }}>
-                    No pending actions.
-                  </p>
-                )}
-              </div>
-            </AdminPanel>
-
-            <AdminPanel
-              title="Order Fulfillment"
-              tagLabel="ORDERS"
-              tagClass="tag-orders"
-              className="tour-orders-panel"
-            >
-              <div id="adminOrders" className="tour-orders-actions">
-                {loadingOrders ? (
-                  renderSkeletonRows(3, 'orders')
-                ) : pendingOrders.length ? (
-                  pendingOrders.map((item) => (
-                    <div className="b-row" key={item.id}>
-                      <div className="b-top">
-                        <span className="b-name">
-                          {item.name}{' '}
-                          <span style={{ opacity: 0.5, fontSize: '0.75rem' }}>
-                            #{item.id}
-                          </span>
-                        </span>
-                        <span
-                          className={`status-chip ${
-                            item.status === 'pending'
-                              ? 'sc-pending'
-                              : 'sc-fulfilled'
-                          }`}
-                        >
-                          {item.status.toUpperCase()}
-                        </span>
-                      </div>
-                      <div className="b-sub">
-                        {item.items} · {formatCurrency(item.total)}
-                      </div>
-                      {item.status === 'pending' ? (
-                        <div className="b-actions">
-                          <button
-                            className="confirm-btn cb-fulfill"
-                            type="button"
-                            onClick={() => handleOrderStatus(item.id, 'fulfilled')}
-                          >
-                            📦 Mark Fulfilled
-                          </button>
-                          <button
-                            className="confirm-btn"
-                            type="button"
-                            onClick={() => handleReminder(item, 'order')}
-                          >
-                            🔔 Remind
-                          </button>
-                        </div>
-                      ) : null}
-                    </div>
-                  ))
-                ) : (
-                  <p style={{ opacity: 0.4, fontSize: '0.8rem' }}>
-                    No pending actions.
-                  </p>
-                )}
-              </div>
-            </AdminPanel>
+            <OrdersManager
+              pendingOrders={pendingOrders}
+              loadingOrders={loadingOrders}
+              onOrderStatus={handleOrderStatus}
+              onReminder={handleReminder}
+              renderSkeletonRows={renderSkeletonRows}
+            />
           </div>
         </>
       )}
-      {previewPhoto && (
-        <div
-          className="overlay open"
-          onClick={() => setPreviewPhoto(null)}
-          style={{ zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        >
-          <div
-            className="sheet"
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: '600px', width: '90%', height: 'auto', maxHeight: '90vh', padding: '1.5rem', background: 'var(--bg-color)', borderRadius: '12px', display: 'flex', flexDirection: 'column' }}
-          >
-            <div className="sheet-header">
-              <h2>Reference Photo</h2>
-              <button className="close-btn" onClick={() => setPreviewPhoto(null)}>✕</button>
-            </div>
-            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', justifyContent: 'center', margin: '1rem 0' }}>
-              <img
-                src={previewPhoto}
-                alt="Reference"
-                style={{ maxWidth: '100%', maxHeight: '60vh', objectFit: 'contain', borderRadius: '8px' }}
-              />
-            </div>
-            <a
-              href={previewPhoto}
-              target="_blank"
-              rel="noopener noreferrer"
-              download
-              className="btn btn-primary"
-              style={{ textAlign: 'center', textDecoration: 'none' }}
-            >
-              📥 Download / View Full Image
-            </a>
-          </div>
-        </div>
-      )}
+      <PhotoPreviewModal
+        photoUrl={previewPhoto}
+        onClose={() => setPreviewPhoto(null)}
+      />
     </>
   )
 }

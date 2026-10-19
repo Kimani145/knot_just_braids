@@ -5,7 +5,7 @@ const normalizeEnvValue = (value) => {
     return ''
   }
 
-  return value.trim().replace(/^['\"]|['\"]$/g, '')
+  return value.trim().replace(/^['"]|['"]$/g, '')
 }
 
 const emailConfig = {

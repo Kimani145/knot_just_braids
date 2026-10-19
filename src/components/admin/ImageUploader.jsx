@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore'
 import formatBytes from '../../utils/formatBytes'
-import { db } from '../../firebase'
+import { compressImage } from '../../utils/imageCompressor'
+import { uploadImageWithFallback } from '../../services/api'
+import { auth, db } from '../../firebase'
 import { ASSET_METADATA_COLLECTION } from '../../constants/catalog'
-
-const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME
-const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET
 
 const createId = () => {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -48,40 +47,6 @@ function ImageUploader({
     }
   }, [resetSignal])
 
-  const uploadToCloudinary = async (file) => {
-    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {
-      throw new Error(
-        'Missing Cloudinary env vars. Define VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET.',
-      )
-    }
-
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET)
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 15000)
-
-    try {
-      const response = await fetch(
-        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
-        {
-          method: 'POST',
-          body: formData,
-          signal: controller.signal,
-        },
-      )
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`Cloudinary upload failed: ${errorText}`)
-      }
-
-      return response.json()
-    } finally {
-      clearTimeout(timeoutId)
-    }
-  }
-
   const emitUpload = (nextAssets) => {
     if (allowMultiple) {
       onUpload?.(nextAssets)
@@ -90,20 +55,33 @@ function ImageUploader({
     onUpload?.(nextAssets[0] || null)
   }
 
-  const uploadFile = async (file) => {
+  const uploadFile = async (rawFile) => {
+    // 1. Client-side canvas compression to save mobile bandwidth
+    const file = await compressImage(rawFile, { maxWidth: 1600, quality: 0.85 })
     const formattedFileSize = formatBytes(file.size)
-    const cloudinaryResponse = await uploadToCloudinary(file)
-    const assetUrl = cloudinaryResponse.secure_url
 
+    // 2. Fetch admin token for signed upload
+    const authToken = await auth.currentUser?.getIdToken?.()
+
+    // 3. Upload to Cloudinary (signed with fallback)
+    const cloudinaryResponse = await uploadImageWithFallback(file, {
+      authToken,
+      folder: 'knot_just/catalog',
+    })
+
+    const assetUrl = cloudinaryResponse.secure_url
     if (!assetUrl) {
       throw new Error('Cloudinary upload succeeded without returning a secure URL.')
     }
+
+    const publicId = cloudinaryResponse.public_id || null
 
     await addDoc(collection(db, ASSET_METADATA_COLLECTION), {
       fileName: file.name,
       fileSize: formattedFileSize,
       mimeType: file.type,
       assetUrl,
+      ...(publicId ? { publicId } : {}),
       uploadedAt: serverTimestamp(),
     })
 
@@ -115,6 +93,7 @@ function ImageUploader({
       timestamp: new Date().toISOString(),
       previewUrl: assetUrl,
       assetUrl,
+      ...(publicId ? { publicId } : {}),
     }
   }
 

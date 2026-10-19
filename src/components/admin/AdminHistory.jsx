@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { Archive, Check, X } from 'lucide-react'
 import AdminPanel from './AdminPanel'
 import formatCurrency from '../../utils/formatCurrency'
 import { SkeletonRow } from '../layout/Skeletons'
@@ -61,7 +62,10 @@ function AdminHistory({
     <div className="admin-history-view">
       <div className="admin-panel span2" style={{ background: 'transparent', padding: '1.2rem 1.5rem 0' }}>
         <div className="history-header">
-          <h2>📋 History & Archive</h2>
+          <h2>
+            <Archive size={20} style={{ display: 'inline', marginRight: 6, verticalAlign: 'middle' }} />
+            History & Archive
+          </h2>
           <p>Immutable ledger of completed bookings and fulfilled orders</p>
         </div>
       </div>
@@ -73,7 +77,9 @@ function AdminHistory({
           tagLabel="HISTORY"
           tagClass="tag-history"
         >
-          {confirmedBookings.length > 0 ? (
+          {loadingBookings ? (
+            <div className="history-ledger">{renderSkeletonRows(3, 'history-bookings')}</div>
+          ) : confirmedBookings.length > 0 ? (
             <div className="history-ledger">
               <div className="history-ledger-header">
                 <span>Client</span>
@@ -89,7 +95,10 @@ function AdminHistory({
                     {formatDate(booking.date)}
                   </span>
                   <span className="history-cell status">
-                    <span className="status-badge confirmed">✓ Confirmed</span>
+                    <span className="status-badge confirmed">
+                      <Check size={12} style={{ marginRight: 3, verticalAlign: 'middle' }} />
+                      Confirmed
+                    </span>
                   </span>
                 </div>
               ))}
@@ -120,7 +129,10 @@ function AdminHistory({
                     {formatDate(booking.date)}
                   </span>
                   <span className="history-cell status">
-                    <span className="status-badge declined">✕ Declined</span>
+                    <span className="status-badge declined">
+                      <X size={12} style={{ marginRight: 3, verticalAlign: 'middle' }} />
+                      Declined
+                    </span>
                   </span>
                 </div>
               ))}
@@ -134,7 +146,9 @@ function AdminHistory({
           tagLabel="ORDERS"
           tagClass="tag-orders"
         >
-          {fulfilledOrders.length > 0 ? (
+          {loadingOrders ? (
+            <div className="history-ledger">{renderSkeletonRows(3, 'history-orders')}</div>
+          ) : fulfilledOrders.length > 0 ? (
             <div className="history-ledger">
               <div className="history-ledger-header">
                 <span>Client</span>

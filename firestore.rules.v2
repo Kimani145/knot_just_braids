@@ -1,0 +1,58 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model & Architecture (WS5d Lockdown)
+    // ===============================================================
+    //
+    // Customer checkout and bookings run entirely through server endpoints
+    // (/api/checkout and /api/booking) using the Firebase Admin SDK.
+    //
+    // Public Catalog:
+    //   - salon_styles/{id}: Public read; admin write
+    //   - bead_products/{id}: Public read; admin write (isStockDecrement removed)
+    //
+    // Server / Admin Only:
+    //   - bookings/{id}: Admin read/write; browser creation disabled
+    //   - orders/{id}: Admin read/write; browser creation disabled
+    //   - assets_metadata/{id}: Admin read/write
+    //
+    // Fallback:
+    //   - All unspecified collections/documents: Deny all read and write
+    // ===============================================================
+
+    function isAdmin() {
+      return request.auth != null && request.auth.uid in ['PASTE_ADMIN_UID_HERE'];
+    }
+
+    match /salon_styles/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /bead_products/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Customer creation is disabled from the browser; handled exclusively by /api/booking using Firebase Admin SDK
+    match /bookings/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    // Customer creation is disabled from the browser; handled exclusively by /api/checkout using Firebase Admin SDK
+    match /orders/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    match /assets_metadata/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    // Catch-all fallback deny for any unspecified collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

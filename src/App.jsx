@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { onAuthStateChanged, signOut as signOutAuth } from 'firebase/auth'
 import { collection, onSnapshot } from 'firebase/firestore'
 import { SpeedInsights } from '@vercel/speed-insights/react'
@@ -8,14 +8,18 @@ import Navigation from './components/layout/Navigation'
 import FeedToggle from './components/layout/FeedToggle'
 import Footer from './components/layout/Footer'
 import ClientView from './components/client/ClientView'
-import PrivacyPolicy from './components/client/PrivacyPolicy'
-import TermsOfService from './components/client/TermsOfService'
 import BookingSheet from './components/modals/BookingSheet'
 import CartSheet from './components/modals/CartSheet'
 import CheckoutSheet from './components/modals/CheckoutSheet'
-import AdminLogin from './components/admin/AdminLogin'
-import AdminView from './components/admin/AdminView'
+import { SkeletonRow } from './components/layout/Skeletons'
+import ConsentBanner from './components/common/ConsentBanner'
+import { trackPageView } from './services/analytics'
 import { auth, db } from './firebase'
+
+const AdminLogin = lazy(() => import('./components/admin/AdminLogin'))
+const AdminView = lazy(() => import('./components/admin/AdminView'))
+const PrivacyPolicy = lazy(() => import('./components/client/PrivacyPolicy'))
+const TermsOfService = lazy(() => import('./components/client/TermsOfService'))
 import {
   BEAD_BACKGROUNDS,
   BEAD_PRODUCTS_COLLECTION,
@@ -24,6 +28,7 @@ import {
   SALON_BACKGROUNDS,
   SALON_STYLES_COLLECTION,
 } from './constants/catalog'
+import { sanitizeVideos } from './utils/tiktok'
 
 const getViewFromPath = () => {
   if (typeof window === 'undefined') return 'client'
@@ -62,6 +67,7 @@ const mapSalonStyle = (docSnapshot, index) => {
     desc: data.description ?? data.desc ?? 'New style',
     bg: data.bg ?? SALON_BACKGROUNDS[index % SALON_BACKGROUNDS.length],
     assetUrl: data.assetUrl ?? '',
+    videos: sanitizeVideos(data.videos),
   }
 }
 
@@ -84,6 +90,7 @@ const mapBeadProduct = (docSnapshot, index) => {
     bg: data.bg ?? BEAD_BACKGROUNDS[index % BEAD_BACKGROUNDS.length],
     images,
     assetUrl: coverImage,
+    videos: sanitizeVideos(data.videos),
   }
 }
 
@@ -159,10 +166,13 @@ function App() {
 
   useEffect(() => {
     const handlePop = () => {
-      setCurrentView(getViewFromPath())
+      const view = getViewFromPath()
+      setCurrentView(view)
+      trackPageView(window.location.pathname, view)
     }
 
     window.addEventListener('popstate', handlePop)
+    trackPageView(window.location.pathname, getViewFromPath())
     return () => window.removeEventListener('popstate', handlePop)
   }, [])
 
@@ -295,11 +305,6 @@ function App() {
     setCart([])
   }
 
-  const switchToAdmin = () => {
-    window.history.pushState({}, '', '/admin')
-    setCurrentView('admin')
-  }
-
   const handleLogoClick = () => {
     if (['privacy', 'terms'].includes(currentView)) {
       window.history.pushState ? window.history.pushState({}, '', '/') : null
@@ -314,6 +319,7 @@ function App() {
     window.history.pushState({}, '', path)
     setCurrentView(view)
     window.scrollTo({ top: 0 })
+    trackPageView(path, view)
   }
 
   const leaveAdminRoute = () => {
@@ -425,9 +431,13 @@ function App() {
             />
           </>
         ) : currentView === 'privacy' ? (
-          <PrivacyPolicy />
+          <Suspense fallback={<div className="container" style={{ padding: '3rem 1rem' }}><SkeletonRow /><SkeletonRow /></div>}>
+            <PrivacyPolicy />
+          </Suspense>
         ) : currentView === 'terms' ? (
-          <TermsOfService />
+          <Suspense fallback={<div className="container" style={{ padding: '3rem 1rem' }}><SkeletonRow /><SkeletonRow /></div>}>
+            <TermsOfService />
+          </Suspense>
         ) : null}
         <Footer onNavigate={handleNavigate} />
       </div>
@@ -437,29 +447,39 @@ function App() {
         className={`view${currentView === 'admin' ? ' active' : ''}`}
       >
         {currentView === 'admin' ? (
-          adminUser ? (
-            <AdminView
-              theme={theme}
-              onToggleTheme={handleToggleTheme}
-              onSignOut={handleAdminSignOut}
-              adminUser={adminUser}
-              adminMode={adminMode}
-              setAdminMode={setAdminMode}
-              salonStyles={salonStyles}
-              beadProducts={beadProducts}
-              loadingSalon={loadingSalon}
-              loadingBeads={loadingBeads}
-              loadingBookings={loadingBookings}
-              loadingOrders={loadingOrders}
-              bookings={bookings}
-              orders={orders}
-            />
-          ) : (
-            <AdminLogin
-              isCheckingSession={!isAuthReady}
-              onBackToStore={leaveAdminRoute}
-            />
-          )
+          <Suspense
+            fallback={
+              <div className="container" style={{ padding: '3rem 1rem' }}>
+                <SkeletonRow />
+                <SkeletonRow />
+                <SkeletonRow />
+              </div>
+            }
+          >
+            {adminUser ? (
+              <AdminView
+                theme={theme}
+                onToggleTheme={handleToggleTheme}
+                onSignOut={handleAdminSignOut}
+                adminUser={adminUser}
+                adminMode={adminMode}
+                setAdminMode={setAdminMode}
+                salonStyles={salonStyles}
+                beadProducts={beadProducts}
+                loadingSalon={loadingSalon}
+                loadingBeads={loadingBeads}
+                loadingBookings={loadingBookings}
+                loadingOrders={loadingOrders}
+                bookings={bookings}
+                orders={orders}
+              />
+            ) : (
+              <AdminLogin
+                isCheckingSession={!isAuthReady}
+                onBackToStore={leaveAdminRoute}
+              />
+            )}
+          </Suspense>
         ) : (
           null
         )}
@@ -483,6 +503,9 @@ function App() {
         cart={cart}
         onClose={handleCloseCheckout}
         onComplete={handleOrderComplete}
+      />
+      <ConsentBanner
+        onOpenPrivacyPolicy={() => handleNavigate('/privacy', 'privacy')}
       />
       <Toaster position="top-center" richColors />
     </>

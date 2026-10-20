@@ -43,15 +43,6 @@ function ClientView({
            <img src="/instagram-logo-facebook-2-svgrepo-com.svg" alt="Instagram" width="24" height="24" />
         </a>
         <a
-          className="s-icon s-snap"
-          href="https://snapchat.com/add/knotjust"
-          title="Snapchat"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="/snapchat-svgrepo-com.svg" alt="Snapchat" width="24" height="24" />
-        </a>
-        <a
           className="s-icon s-tt"
           href="https://www.tiktok.com/@knot.justbraids"
           title="TikTok"

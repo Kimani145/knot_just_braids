@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Info, Pencil, Trash2, Video } from 'lucide-react'
 import AdminPanel from '../AdminPanel'
 import ImageUploader from '../ImageUploader'
@@ -25,6 +25,17 @@ export default function BeadManager({
   getItemAssetUrl,
   renderSkeletonRows,
 }) {
+  const [statusFilter, setStatusFilter] = useState('all')
+
+  const publishedCount = beadProducts.filter((p) => p.status !== 'draft').length
+  const draftCount = beadProducts.filter((p) => p.status === 'draft').length
+
+  const filteredProducts = beadProducts.filter((p) => {
+    if (statusFilter === 'published') return p.status !== 'draft'
+    if (statusFilter === 'draft') return p.status === 'draft'
+    return true
+  })
+
   return (
     <AdminPanel
       title="Beadwork Products"
@@ -56,6 +67,27 @@ export default function BeadManager({
       >
         <div className="a-group full">
           <h4 className="a-group-title">Basics</h4>
+          <div className="a-fg full">
+            <label className="a-label">Publish Status</label>
+            <div className="pricing-toggle">
+              <button
+                type="button"
+                className={`pricing-toggle-btn${beadForm.status !== 'draft' ? ' active' : ''}`}
+                onClick={onBeadChange('status')}
+                value="published"
+              >
+                Published (Customer-Visible)
+              </button>
+              <button
+                type="button"
+                className={`pricing-toggle-btn${beadForm.status === 'draft' ? ' active' : ''}`}
+                onClick={onBeadChange('status')}
+                value="draft"
+              >
+                Draft (Hidden)
+              </button>
+            </div>
+          </div>
           <div className="a-fg">
             <label className="a-label">Product Name</label>
             <input
@@ -90,7 +122,7 @@ export default function BeadManager({
             <label className="a-label">Description</label>
             <input
               className={beadFormErrors.desc ? 'a-input invalid' : 'a-input'}
-              placeholder="Short product description"
+              placeholder="Short product description (required for published products)"
               value={beadForm.desc}
               onChange={onBeadChange('desc')}
               onBlur={onBeadFieldBlur('desc')}
@@ -98,6 +130,16 @@ export default function BeadManager({
             {beadFormErrors.desc ? (
               <span className="a-error">{beadFormErrors.desc}</span>
             ) : null}
+          </div>
+          <div className="a-fg full">
+            <label className="a-label">Internal Note (Admin Only)</label>
+            <textarea
+              className="a-input"
+              placeholder="Private procurement notes, supplier links, or stock locations"
+              value={beadForm.internalNote || ''}
+              onChange={onBeadChange('internalNote')}
+              rows={2}
+            />
           </div>
           <div className="a-fg">
             <label className="a-label">Emoji (Fallback)</label>
@@ -224,18 +266,58 @@ export default function BeadManager({
             </div>
           </div>
         ) : null}
-        <div className="a-fg full">
-          <button className="a-add-btn bead-add" type="submit">
-            ＋ Add Bead Product
+        <div className="a-fg full" style={{ display: 'flex', gap: '0.5rem' }}>
+          <button className="a-add-btn bead-add" type="submit" style={{ flex: 1 }}>
+            {beadForm.status === 'draft' ? '＋ Save as Draft' : '＋ Add Bead Product'}
           </button>
+          {beadForm.status !== 'draft' ? (
+            <button
+              type="button"
+              className="btn btn-outline"
+              style={{ fontSize: '0.82rem', whiteSpace: 'nowrap' }}
+              onClick={(e) => {
+                onBeadChange('status')({ target: { value: 'draft' } })
+                setTimeout(() => {
+                  const form = e.target.closest('form')
+                  if (form) form.requestSubmit()
+                }, 0)
+              }}
+            >
+              Save as Draft
+            </button>
+          ) : null}
         </div>
       </form>
+
+      <div className="a-filter-tabs">
+        <button
+          type="button"
+          className={`a-filter-tab${statusFilter === 'all' ? ' active' : ''}`}
+          onClick={() => setStatusFilter('all')}
+        >
+          All ({beadProducts.length})
+        </button>
+        <button
+          type="button"
+          className={`a-filter-tab${statusFilter === 'published' ? ' active' : ''}`}
+          onClick={() => setStatusFilter('published')}
+        >
+          Published ({publishedCount})
+        </button>
+        <button
+          type="button"
+          className={`a-filter-tab${statusFilter === 'draft' ? ' active' : ''}`}
+          onClick={() => setStatusFilter('draft')}
+        >
+          Drafts ({draftCount})
+        </button>
+      </div>
 
       <div id="adminBeadList">
         {loadingBeads ? (
           renderSkeletonRows(4, 'beads')
-        ) : beadProducts.length ? (
-          beadProducts.map((item) => (
+        ) : filteredProducts.length ? (
+          filteredProducts.map((item) => (
             <div className="a-item-row" key={item.id}>
               <span className="emoji">
                 {getItemAssetUrl(item) ? (
@@ -254,6 +336,11 @@ export default function BeadManager({
                 )}
               </span>
               <span className="name">{item.name}</span>
+              {item.status === 'draft' ? (
+                <span className="a-draft-badge" title="Draft (not visible to customers)">
+                  Draft
+                </span>
+              ) : null}
               {item.variant ? (
                 <span className="a-variant-badge" title={`Variant: ${item.variant}`}>
                   {item.variant}
@@ -290,7 +377,9 @@ export default function BeadManager({
           ))
         ) : (
           <p style={{ opacity: 0.4, fontSize: '0.8rem' }}>
-            No products added yet.
+            {statusFilter === 'all'
+              ? 'No products added yet.'
+              : `No ${statusFilter} products found.`}
           </p>
         )}
       </div>

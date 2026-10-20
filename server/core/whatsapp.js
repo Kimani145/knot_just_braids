@@ -1,5 +1,6 @@
 import crypto from 'node:crypto'
 import { ForbiddenError, UnauthorizedError, ValidationError } from './errors.js'
+import { isPubliclyVisible } from './catalog.js'
 
 /**
  * Server Core - WhatsApp Webhook & Payload Utilities
@@ -125,5 +126,99 @@ export function formatOutboundWhatsAppText(recipientPhone, text) {
       preview_url: false,
       body: text,
     },
+  }
+}
+
+/**
+ * WhatsApp tool: check_stock
+ * Checks whether an item is available and in stock.
+ * Draft items are strictly refused (treated as not found).
+ *
+ * @param {import('./store.js').Store} store
+ * @param {string} productId
+ * @returns {Promise<{ ok: boolean, found: boolean, inStock: boolean, stock: number, name?: string, price?: number }>}
+ */
+export async function check_stock(store, productId) {
+  if (!productId || typeof productId !== 'string') {
+    return { ok: false, found: false, inStock: false, stock: 0 }
+  }
+
+  const product = await store.getProduct(productId.trim())
+  if (!product || !isPubliclyVisible(product)) {
+    return { ok: true, found: false, inStock: false, stock: 0 }
+  }
+
+  const currentStock = typeof product.stock === 'number' ? product.stock : parseInt(product.stock, 10)
+  const stock = isNaN(currentStock) ? 0 : currentStock
+
+  return {
+    ok: true,
+    found: true,
+    inStock: stock > 0,
+    stock,
+    name: product.name,
+    price: product.price,
+  }
+}
+
+/**
+ * WhatsApp tool: start_order
+ * Begins order placement for a customer.
+ * Draft items are strictly refused.
+ *
+ * @param {import('./store.js').Store} store
+ * @param {string} productId
+ * @param {number} [quantity=1]
+ * @returns {Promise<{ ok: boolean, error?: string, product?: object }>}
+ */
+export async function start_order(store, productId, quantity = 1) {
+  if (!productId || typeof productId !== 'string') {
+    return { ok: false, error: 'Product ID is required' }
+  }
+
+  const product = await store.getProduct(productId.trim())
+  if (!product || !isPubliclyVisible(product)) {
+    return { ok: false, error: 'Product not found or not available' }
+  }
+
+  const qty = parseInt(quantity, 10)
+  if (isNaN(qty) || qty <= 0) {
+    return { ok: false, error: 'Invalid quantity' }
+  }
+
+  const currentStock = typeof product.stock === 'number' ? product.stock : parseInt(product.stock, 10)
+  const stock = isNaN(currentStock) ? 0 : currentStock
+
+  if (stock < qty) {
+    return { ok: false, error: 'Insufficient stock available', stock }
+  }
+
+  return {
+    ok: true,
+    product: {
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      quantity: qty,
+    },
+  }
+}
+
+/**
+ * Retrieves public catalog context for WhatsApp AI assistant.
+ * Filters out unpublished drafts.
+ *
+ * @param {import('./store.js').Store} store
+ * @returns {Promise<{ salonStyles: object[], beadProducts: object[] }>}
+ */
+export async function getWhatsAppCatalogContext(store) {
+  const [salonStyles, beadProducts] = await Promise.all([
+    store.listSalonStyles(),
+    store.listBeadProducts(),
+  ])
+
+  return {
+    salonStyles: (salonStyles || []).filter(isPubliclyVisible),
+    beadProducts: (beadProducts || []).filter(isPubliclyVisible),
   }
 }

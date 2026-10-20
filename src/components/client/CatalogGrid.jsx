@@ -2,9 +2,11 @@ import { useState } from 'react'
 import StyleCard from './StyleCard'
 import ProductQuickView from './ProductQuickView'
 import { SkeletonCard } from '../layout/Skeletons'
+import { isPubliclyVisible } from '../../utils/catalogVisibility'
 
 function CatalogGrid({ items, isSalon, isLoading, onBook, onAddToCart, onInquire }) {
   const [quickViewItem, setQuickViewItem] = useState(null)
+  const visibleItems = (items || []).filter(isPubliclyVisible)
 
   if (isLoading) {
     return (
@@ -19,7 +21,7 @@ function CatalogGrid({ items, isSalon, isLoading, onBook, onAddToCart, onInquire
   return (
     <>
       <div className="catalog-grid" id="catalogGrid">
-        {items.map((item) => (
+        {visibleItems.map((item) => (
           <StyleCard
             key={`${isSalon ? 'salon' : 'beads'}-${item.id}`}
             item={item}

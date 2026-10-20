@@ -28,7 +28,8 @@ import {
   SALON_BACKGROUNDS,
   SALON_STYLES_COLLECTION,
 } from './constants/catalog'
-import { sanitizeVideos } from './utils/tiktok'
+import { mapSalonStyle, mapBeadProduct } from './utils/mappers'
+import { isPubliclyVisible } from './utils/catalogVisibility'
 
 const getViewFromPath = () => {
   if (typeof window === 'undefined') return 'client'
@@ -53,45 +54,6 @@ const getInitialFeed = () => {
 
   const storedFeed = window.localStorage.getItem('knotJustFeed')
   return storedFeed === 'beads' ? 'beads' : 'salon'
-}
-
-const mapSalonStyle = (docSnapshot, index) => {
-  const data = docSnapshot.data()
-
-  return {
-    id: docSnapshot.id,
-    name: data.name ?? 'Untitled style',
-    price: Number(data.price) || 0,
-    duration: data.duration ?? '—',
-    emoji: data.emoji ?? '✨',
-    desc: data.description ?? data.desc ?? 'New style',
-    bg: data.bg ?? SALON_BACKGROUNDS[index % SALON_BACKGROUNDS.length],
-    assetUrl: data.assetUrl ?? '',
-    videos: sanitizeVideos(data.videos),
-  }
-}
-
-const mapBeadProduct = (docSnapshot, index) => {
-  const data = docSnapshot.data()
-  const pricingType = data.pricingType === 'range' ? 'range' : 'fixed'
-  const images = Array.isArray(data.images) ? data.images.filter(Boolean) : []
-  const coverImage = images[0] ?? data.assetUrl ?? ''
-
-  return {
-    id: docSnapshot.id,
-    name: data.name ?? 'Untitled product',
-    price: Number(data.price) || 0,
-    priceMax:
-      pricingType === 'range' ? Number(data.priceMax) || Number(data.price) || 0 : null,
-    pricingType,
-    stock: Math.max(0, Number.parseInt(data.stock, 10) || 0),
-    emoji: data.emoji ?? '📿',
-    desc: data.description ?? data.desc ?? 'New product',
-    bg: data.bg ?? BEAD_BACKGROUNDS[index % BEAD_BACKGROUNDS.length],
-    images,
-    assetUrl: coverImage,
-    videos: sanitizeVideos(data.videos),
-  }
 }
 
 const getDisplayName = (data) => {
@@ -421,8 +383,8 @@ function App() {
             <FeedToggle activeFeed={activeFeed} onChange={setActiveFeed} />
             <ClientView
               activeFeed={activeFeed}
-              salonStyles={salonStyles}
-              beadProducts={beadProducts}
+              salonStyles={salonStyles.filter(isPubliclyVisible)}
+              beadProducts={beadProducts.filter(isPubliclyVisible)}
               loadingSalon={loadingSalon}
               loadingBeads={loadingBeads}
               onBook={handleBookStyle}

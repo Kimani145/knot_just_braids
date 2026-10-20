@@ -40,6 +40,8 @@ export const mapSalonStyle = (docOrData, index = 0) => {
     assetUrl: data.assetUrl ?? '',
     variant: data.variant ? String(data.variant).trim() : '',
     videos: sanitizeVideos(data.videos),
+    status: data.status === 'draft' ? 'draft' : 'published',
+    internalNote: data.internalNote ? String(data.internalNote).trim() : '',
   }
 }
 
@@ -65,6 +67,8 @@ export const mapBeadProduct = (docOrData, index = 0) => {
     assetUrl: coverImage,
     variant: data.variant ? String(data.variant).trim() : '',
     videos: sanitizeVideos(data.videos),
+    status: data.status === 'draft' ? 'draft' : 'published',
+    internalNote: data.internalNote ? String(data.internalNote).trim() : '',
   }
 }
 

@@ -58,6 +58,8 @@ const initialSalonForm = {
   emoji: '',
   desc: '',
   variant: '',
+  status: 'published',
+  internalNote: '',
   image: null,
   videos: [],
   pendingVideoUrl: '',
@@ -74,6 +76,8 @@ const initialBeadForm = {
   emoji: '',
   desc: '',
   variant: '',
+  status: 'published',
+  internalNote: '',
   images: [],
   videos: [],
   pendingVideoUrl: '',
@@ -92,6 +96,8 @@ const initialInventoryEditForm = {
   stock: '',
   desc: '',
   variant: '',
+  status: 'published',
+  internalNote: '',
   image: null,
   images: [],
   videos: [],
@@ -395,13 +401,19 @@ function AdminView({
   }
 
   const validateSalonField = (field, formState = salonForm) => {
+    if (field === 'name' && !formState.name.trim()) {
+      return 'Style name is required.'
+    }
+
+    // Draft items only require a name
+    if (formState.status === 'draft') {
+      return ''
+    }
+
     const pricingType = formState.pricingType === 'range' ? 'range' : 'fixed'
     const priceValue = Number(formState.price)
     const priceMaxValue = Number(formState.priceMax)
 
-    if (field === 'name' && !formState.name.trim()) {
-      return 'Style name is required.'
-    }
     if (field === 'desc' && !formState.desc.trim()) {
       return 'Description is required.'
     }
@@ -491,13 +503,19 @@ function AdminView({
   }
 
   const validateBeadField = (field, formState = beadForm) => {
+    if (field === 'name' && !formState.name.trim()) {
+      return 'Product name is required.'
+    }
+
+    // Draft items only require a name
+    if (formState.status === 'draft') {
+      return ''
+    }
+
     const pricingType = formState.pricingType === 'range' ? 'range' : 'fixed'
     const priceValue = Number(formState.price)
     const priceMaxValue = Number(formState.priceMax)
 
-    if (field === 'name' && !formState.name.trim()) {
-      return 'Product name is required.'
-    }
     if (field === 'desc' && !formState.desc.trim()) {
       return 'Description is required.'
     }
@@ -656,6 +674,8 @@ function AdminView({
       stock: type === 'beads' ? String(item.stock ?? 0) : '',
       desc: item.desc ?? item.description ?? '',
       variant: item.variant ?? '',
+      status: item.status === 'draft' ? 'draft' : 'published',
+      internalNote: item.internalNote ?? '',
       image: salonAsset,
       images: normalizedAssets,
       videos: itemVideos,
@@ -681,29 +701,41 @@ function AdminView({
       return
     }
 
+    const isPublishing = inventoryEditForm.status !== 'draft'
     const pricingType = inventoryEditForm.pricingType === 'range' ? 'range' : 'fixed'
     const priceValue = Number(inventoryEditForm.price)
-    if (!priceValue || priceValue <= 0) {
-      setInventoryEditFeedback({
-        type: 'error',
-        message: 'Enter a valid price before saving.',
-      })
-      return
-    }
-
     const priceMaxValue = pricingType === 'range' ? Number(inventoryEditForm.priceMax) : null
-    if (pricingType === 'range') {
-      if (!priceMaxValue || priceMaxValue <= 0) {
+
+    if (isPublishing) {
+      if (!priceValue || priceValue <= 0) {
         setInventoryEditFeedback({
           type: 'error',
-          message: 'Enter a valid maximum price.',
+          message: 'Enter a valid price before publishing.',
         })
         return
       }
-      if (priceMaxValue <= priceValue) {
+
+      if (pricingType === 'range') {
+        if (!priceMaxValue || priceMaxValue <= 0) {
+          setInventoryEditFeedback({
+            type: 'error',
+            message: 'Enter a valid maximum price.',
+          })
+          return
+        }
+        if (priceMaxValue <= priceValue) {
+          setInventoryEditFeedback({
+            type: 'error',
+            message: 'Maximum price must be greater than minimum price.',
+          })
+          return
+        }
+      }
+
+      if (!inventoryEditForm.desc.trim()) {
         setInventoryEditFeedback({
           type: 'error',
-          message: 'Maximum price must be greater than minimum price.',
+          message: 'Description is required when publishing.',
         })
         return
       }
@@ -719,12 +751,12 @@ function AdminView({
 
     const payload = {
       pricingType,
-      price: priceValue,
+      price: priceValue || 0,
       priceMax: pricingType === 'range' ? priceMaxValue : null,
       variant: inventoryEditForm.variant?.trim() || '',
-      description:
-        inventoryEditForm.desc.trim() ||
-        (inventoryEditForm.type === 'salon' ? 'Updated style' : 'Updated product'),
+      description: inventoryEditForm.desc.trim() || '',
+      status: isPublishing ? 'published' : 'draft',
+      internalNote: inventoryEditForm.internalNote?.trim() || '',
       updatedAt: serverTimestamp(),
     }
 
@@ -773,21 +805,31 @@ function AdminView({
       return
     }
 
-    const nextErrors = {
-      name: validateSalonField('name'),
-      price: validateSalonField('price'),
-      priceMax: validateSalonField('priceMax'),
-      desc: validateSalonField('desc'),
-    }
-    setSalonFormErrors(nextErrors)
-    if (Object.values(nextErrors).some(Boolean)) {
-      pushDashboardFeedback('error', 'Fix the highlighted hair style fields and try again.')
-      return
+    const isDraft = salonForm.status === 'draft'
+    if (!isDraft) {
+      const nextErrors = {
+        name: validateSalonField('name'),
+        price: validateSalonField('price'),
+        priceMax: validateSalonField('priceMax'),
+        desc: validateSalonField('desc'),
+      }
+      setSalonFormErrors(nextErrors)
+      if (Object.values(nextErrors).some(Boolean)) {
+        pushDashboardFeedback('error', 'Fix the highlighted hair style fields and try again.')
+        return
+      }
+    } else {
+      const nameError = validateSalonField('name')
+      if (nameError) {
+        setSalonFormErrors((prev) => ({ ...prev, name: nameError }))
+        pushDashboardFeedback('error', 'Style name is required to save as draft.')
+        return
+      }
     }
 
     const pricingType = salonForm.pricingType === 'range' ? 'range' : 'fixed'
-    const priceValue = Number(salonForm.price)
-    const priceMaxValue = pricingType === 'range' ? Number(salonForm.priceMax) : null
+    const priceValue = Number(salonForm.price) || 0
+    const priceMaxValue = pricingType === 'range' ? Number(salonForm.priceMax) || null : null
     const bg = SALON_BACKGROUNDS[salonStyles.length % SALON_BACKGROUNDS.length]
     const assetUrl = salonForm.image?.assetUrl || ''
     const emoji = salonForm.emoji.trim() || '✨'
@@ -802,7 +844,9 @@ function AdminView({
         priceMax: pricingType === 'range' ? priceMaxValue : null,
         variant,
         duration: salonForm.duration.trim() || '—',
-        description: salonForm.desc.trim() || 'New style',
+        description: salonForm.desc.trim() || '',
+        status: isDraft ? 'draft' : 'published',
+        internalNote: salonForm.internalNote?.trim() || '',
         assetUrl,
         emoji,
         bg,
@@ -818,7 +862,10 @@ function AdminView({
         desc: '',
       })
       setSalonUploadReset((value) => value + 1)
-      pushDashboardFeedback('success', 'Hair style published successfully.')
+      pushDashboardFeedback(
+        'success',
+        isDraft ? 'Hair style saved as draft.' : 'Hair style published successfully.',
+      )
     } catch (error) {
       console.error('Failed to save salon style:', error)
       pushDashboardFeedback('error', 'Could not save the hair style to Firestore.')
@@ -831,21 +878,32 @@ function AdminView({
       pushDashboardFeedback('error', 'Add or clear the video link before saving.')
       return
     }
-    const nextErrors = {
-      name: validateBeadField('name'),
-      price: validateBeadField('price'),
-      priceMax: validateBeadField('priceMax'),
-      desc: validateBeadField('desc'),
-    }
-    setBeadFormErrors(nextErrors)
-    if (Object.values(nextErrors).some(Boolean)) {
-      pushDashboardFeedback('error', 'Fix the highlighted bead product fields and try again.')
-      return
+
+    const isDraft = beadForm.status === 'draft'
+    if (!isDraft) {
+      const nextErrors = {
+        name: validateBeadField('name'),
+        price: validateBeadField('price'),
+        priceMax: validateBeadField('priceMax'),
+        desc: validateBeadField('desc'),
+      }
+      setBeadFormErrors(nextErrors)
+      if (Object.values(nextErrors).some(Boolean)) {
+        pushDashboardFeedback('error', 'Fix the highlighted bead product fields and try again.')
+        return
+      }
+    } else {
+      const nameError = validateBeadField('name')
+      if (nameError) {
+        setBeadFormErrors((prev) => ({ ...prev, name: nameError }))
+        pushDashboardFeedback('error', 'Product name is required to save as draft.')
+        return
+      }
     }
 
     const pricingType = beadForm.pricingType === 'range' ? 'range' : 'fixed'
-    const priceValue = Number(beadForm.price)
-    const priceMaxValue = pricingType === 'range' ? Number(beadForm.priceMax) : null
+    const priceValue = Number(beadForm.price) || 0
+    const priceMaxValue = pricingType === 'range' ? Number(beadForm.priceMax) || null : null
     const bg = BEAD_BACKGROUNDS[beadProducts.length % BEAD_BACKGROUNDS.length]
     const stock = Math.max(0, Number.parseInt(beadForm.stock, 10) || 0)
     const images = (Array.isArray(beadForm.images) ? beadForm.images : [])
@@ -864,7 +922,9 @@ function AdminView({
         priceMax: pricingType === 'range' ? priceMaxValue : null,
         variant,
         stock,
-        description: beadForm.desc.trim() || 'New product',
+        description: beadForm.desc.trim() || '',
+        status: isDraft ? 'draft' : 'published',
+        internalNote: beadForm.internalNote?.trim() || '',
         images,
         assetUrl,
         emoji,
@@ -881,7 +941,10 @@ function AdminView({
         desc: '',
       })
       setBeadUploadReset((value) => value + 1)
-      pushDashboardFeedback('success', 'Bead product published successfully.')
+      pushDashboardFeedback(
+        'success',
+        isDraft ? 'Bead product saved as draft.' : 'Bead product published successfully.',
+      )
     } catch (error) {
       console.error('Failed to save bead product:', error)
       pushDashboardFeedback('error', 'Could not save the bead product to Firestore.')
@@ -905,6 +968,29 @@ function AdminView({
     } catch (error) {
       console.error('Failed to delete bead product:', error)
       pushDashboardFeedback('error', 'Could not delete the bead product from Firestore.')
+    }
+  }
+
+  const handleBulkUnpublish = async (flaggedItems = []) => {
+    if (!flaggedItems.length) return
+    try {
+      for (const item of flaggedItems) {
+        const collectionName =
+          item.catalogType === 'salon'
+            ? SALON_STYLES_COLLECTION
+            : BEAD_PRODUCTS_COLLECTION
+        await updateDoc(doc(db, collectionName, String(item.itemId)), {
+          status: 'draft',
+          updatedAt: serverTimestamp(),
+        })
+      }
+      pushDashboardFeedback(
+        'success',
+        `Unpublished ${flaggedItems.length} flagged items to drafts.`,
+      )
+    } catch (error) {
+      console.error('Failed to bulk unpublish flagged items:', error)
+      pushDashboardFeedback('error', 'Could not unpublish flagged items from Firestore.')
     }
   }
 
@@ -1092,7 +1178,10 @@ function AdminView({
           ) : null}
 
           <div className="admin-body">
-            <CatalogLintBanner warnings={catalogWarnings} />
+            <CatalogLintBanner
+              warnings={catalogWarnings}
+              onBulkUnpublish={handleBulkUnpublish}
+            />
             <SalonManager
               salonStyles={salonStyles}
               loadingSalon={loadingSalon}

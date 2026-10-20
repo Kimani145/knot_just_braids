@@ -9,6 +9,7 @@
 import { validateOrderPayload } from './validators.js'
 import { calculateOrderPricing } from './pricing.js'
 import { InsufficientStockError, NotFoundError } from './errors.js'
+import { isPubliclyVisible } from './catalog.js'
 import { logger } from './log.js'
 
 /**
@@ -31,10 +32,10 @@ export async function processCheckout(store, rawPayload) {
       catalogMap.set(p.id, p)
     }
 
-    // Verify all requested products exist and have sufficient stock
+    // Verify all requested products exist, are publicly published, and have sufficient stock
     for (const item of validated.lineItems) {
       const product = catalogMap.get(item.id)
-      if (!product) {
+      if (!product || !isPubliclyVisible(product)) {
         throw new NotFoundError(`Product "${item.id}" was not found in catalog`)
       }
 

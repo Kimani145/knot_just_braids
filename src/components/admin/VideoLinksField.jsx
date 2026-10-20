@@ -150,6 +150,12 @@ function VideoLinksField({
             </p>
           ) : null}
 
+          {validation?.parsed?.kind === 'photo' ? (
+            <p className="a-help-text a-photo-hint">
+              Photo-mode post: TikTok's embed player may restrict playback; customers will see cover + 'View photos on TikTok' if embedding is refused.
+            </p>
+          ) : null}
+
           <p className="a-help-text">
             Tip: To embed from the TikTok app, open the link in your phone browser first, then copy the URL from the browser bar.
           </p>

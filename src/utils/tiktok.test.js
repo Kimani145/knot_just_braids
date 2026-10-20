@@ -7,6 +7,8 @@ import {
   sanitizeVideos,
   buildPlayerSrc,
   buildWatchUrl,
+  classifyTikTokUrl,
+  buildOEmbedUrl,
 } from './tiktok.js'
 
 test('MAX_VIDEOS_PER_ITEM is 2', () => {
@@ -295,4 +297,45 @@ test('buildWatchUrl generates standard watch link honoring kind', () => {
   assert.equal(buildWatchUrl({ id: 'invalid', handle: 'knotjust' }), null)
   assert.equal(buildWatchUrl({ id: '7312345678901234567', handle: 'invalid handle!' }), null)
   assert.equal(buildWatchUrl({ id: '7312345678901234567' }), null)
+})
+
+test('classifyTikTokUrl accurately identifies video, photo, and unknown variants', () => {
+  // Standard video paths
+  assert.equal(classifyTikTokUrl('https://www.tiktok.com/@knotjust/video/7312345678901234567'), 'video')
+  assert.equal(classifyTikTokUrl('https://m.tiktok.com/@knotjust/video/7312345678901234567'), 'video')
+  assert.equal(classifyTikTokUrl('https://tiktok.com/@knotjust/video/7312345678901234567?param=1'), 'video')
+
+  // Standard photo paths
+  assert.equal(classifyTikTokUrl('https://www.tiktok.com/@knotjust/photo/7312345678901234567'), 'photo')
+  assert.equal(classifyTikTokUrl('https://m.tiktok.com/@knotjust/photo/7312345678901234567'), 'photo')
+
+  // Unknown, shortened, non-standard, or malformed
+  assert.equal(classifyTikTokUrl('https://vm.tiktok.com/ZM8abc123/'), 'unknown')
+  assert.equal(classifyTikTokUrl('https://vt.tiktok.com/ZS8abc123/'), 'unknown')
+  assert.equal(classifyTikTokUrl('https://www.tiktok.com/@knotjust'), 'unknown')
+  assert.equal(classifyTikTokUrl('https://not-tiktok.com/video/7312345678901234567'), 'unknown')
+  assert.equal(classifyTikTokUrl('not a url'), 'unknown')
+  assert.equal(classifyTikTokUrl(null), 'unknown')
+  assert.equal(classifyTikTokUrl(''), 'unknown')
+})
+
+test('buildOEmbedUrl produces canonical encoded oEmbed endpoint URL', () => {
+  const oembedFromObj = buildOEmbedUrl({
+    id: '7681345289243905298',
+    handle: 'knot.justbraids',
+    kind: 'photo',
+  })
+  assert.equal(
+    oembedFromObj,
+    'https://www.tiktok.com/oembed?url=https%3A%2F%2Fwww.tiktok.com%2F%40knot.justbraids%2Fphoto%2F7681345289243905298',
+  )
+
+  const oembedFromString = buildOEmbedUrl('https://www.tiktok.com/@knot.justbraids/photo/7681345289243905298')
+  assert.equal(
+    oembedFromString,
+    'https://www.tiktok.com/oembed?url=https%3A%2F%2Fwww.tiktok.com%2F%40knot.justbraids%2Fphoto%2F7681345289243905298',
+  )
+
+  assert.equal(buildOEmbedUrl(null), null)
+  assert.equal(buildOEmbedUrl(''), null)
 })

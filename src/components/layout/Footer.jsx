@@ -25,9 +25,6 @@ function Footer({ onNavigate }) {
         <a href="https://www.tiktok.com/@knot.justbraids" target="_blank" rel="noopener noreferrer">
           <img src="/tiktok-svgrepo-com (2).svg" alt="TikTok" width="24" height="24" />
         </a>
-        <a href="#" target="_blank" rel="noopener noreferrer">
-          <img src="/snapchat-svgrepo-com.svg" alt="Snapchat" width="24" height="24" />
-        </a>
       </div>
       <div className="footer-links">
         <a href="/privacy" onClick={handleClick('/privacy', 'privacy')} className="footer-link">

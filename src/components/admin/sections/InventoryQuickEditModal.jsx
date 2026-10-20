@@ -2,6 +2,7 @@ import React from 'react'
 import { Info, X } from 'lucide-react'
 import ImageUploader from '../ImageUploader'
 import VideoLinksField from '../VideoLinksField'
+import formatCurrency from '../../../utils/formatCurrency'
 
 export default function InventoryQuickEditModal({
   editForm,
@@ -97,30 +98,50 @@ export default function InventoryQuickEditModal({
             </div>
 
             <div className="fg">
-              <label>{editForm.pricingType === 'range' ? 'Minimum Price' : 'Price'}</label>
+              <label htmlFor="inventory-edit-price-input">
+                {editForm.pricingType === 'range' ? 'Minimum Price (KSh)' : 'Price (KSh)'}
+              </label>
               <input
+                id="inventory-edit-price-input"
+                name="price"
                 type="text"
-                value={editForm.priceDisplay}
+                inputMode="numeric"
+                value={editForm.price}
                 onChange={onChange('price')}
-                placeholder="Kshs 120"
+                placeholder="e.g. 1500"
               />
+              {editForm.price ? (
+                <span className="a-hint" style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '2px' }}>
+                  Preview: {formatCurrency(editForm.price)}
+                </span>
+              ) : null}
             </div>
 
             {editForm.pricingType === 'range' ? (
               <div className="fg">
-                <label>Maximum Price</label>
+                <label htmlFor="inventory-edit-price-max-input">Maximum Price (KSh)</label>
                 <input
+                  id="inventory-edit-price-max-input"
+                  name="priceMax"
                   type="text"
-                  value={editForm.priceMaxDisplay}
+                  inputMode="numeric"
+                  value={editForm.priceMax}
                   onChange={onChange('priceMax')}
-                  placeholder="Kshs 250"
+                  placeholder="e.g. 2500"
                 />
+                {editForm.priceMax ? (
+                  <span className="a-hint" style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '2px' }}>
+                    Preview: {formatCurrency(editForm.priceMax)}
+                  </span>
+                ) : null}
               </div>
             ) : null}
 
             <div className="fg">
-              <label>Variant (Optional)</label>
+              <label htmlFor="inventory-edit-variant-input">Variant (Optional)</label>
               <input
+                id="inventory-edit-variant-input"
+                name="variant"
                 type="text"
                 list="inventory-edit-variants"
                 value={editForm.variant || ''}
@@ -138,8 +159,10 @@ export default function InventoryQuickEditModal({
 
             {editForm.type === 'salon' ? (
               <div className="fg">
-                <label>Duration</label>
+                <label htmlFor="inventory-edit-duration-input">Duration</label>
                 <input
+                  id="inventory-edit-duration-input"
+                  name="duration"
                   type="text"
                   value={editForm.duration}
                   onChange={onChange('duration')}
@@ -148,8 +171,10 @@ export default function InventoryQuickEditModal({
               </div>
             ) : (
               <div className="fg">
-                <label>Stock Quantity</label>
+                <label htmlFor="inventory-edit-stock-input">Stock Quantity</label>
                 <input
+                  id="inventory-edit-stock-input"
+                  name="stock"
                   type="number"
                   value={editForm.stock}
                   onChange={onChange('stock')}
@@ -160,7 +185,7 @@ export default function InventoryQuickEditModal({
 
             <div className="fg">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
-                <label style={{ margin: 0 }}>Description</label>
+                <label htmlFor="inventory-edit-desc-input" style={{ margin: 0 }}>Description</label>
                 {editForm.desc?.trim() ? (
                   <button
                     type="button"
@@ -174,6 +199,8 @@ export default function InventoryQuickEditModal({
                 ) : null}
               </div>
               <textarea
+                id="inventory-edit-desc-input"
+                name="description"
                 value={editForm.desc}
                 onChange={onChange('desc')}
                 placeholder="Customer-visible description (required when publishing, optional for drafts)"
@@ -181,8 +208,10 @@ export default function InventoryQuickEditModal({
             </div>
 
             <div className="fg">
-              <label>Internal Note (Admin Only)</label>
+              <label htmlFor="inventory-edit-internal-note-input">Internal Note (Admin Only)</label>
               <textarea
+                id="inventory-edit-internal-note-input"
+                name="internalNote"
                 value={editForm.internalNote || ''}
                 onChange={onChange('internalNote')}
                 placeholder="Private staff notes, styling considerations, or review reminders (never customer-visible)"

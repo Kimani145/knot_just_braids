@@ -4,6 +4,7 @@ import AdminPanel from '../AdminPanel'
 import ImageUploader from '../ImageUploader'
 import VideoLinksField from '../VideoLinksField'
 import { formatPriceRange } from '../../../utils/pricingUtils'
+import formatCurrency from '../../../utils/formatCurrency'
 
 export default function SalonManager({
   salonStyles = [],
@@ -68,8 +69,10 @@ export default function SalonManager({
           </div>
         </div>
         <div className="a-fg">
-          <label className="a-label">Style Name</label>
+          <label className="a-label" htmlFor="salon-name-input">Style Name</label>
           <input
+            id="salon-name-input"
+            name="name"
             className={salonFormErrors.name ? 'a-input invalid' : 'a-input'}
             placeholder="Knotless Braids"
             value={salonForm.name}
@@ -81,8 +84,10 @@ export default function SalonManager({
           ) : null}
         </div>
         <div className="a-fg">
-          <label className="a-label">Variant (Optional)</label>
+          <label className="a-label" htmlFor="salon-variant-input">Variant (Optional)</label>
           <input
+            id="salon-variant-input"
+            name="variant"
             className="a-input"
             list="salon-variant-options"
             placeholder="e.g. Natural, With extensions"
@@ -119,38 +124,58 @@ export default function SalonManager({
           </div>
         </div>
         <div className="a-fg">
-          <label className="a-label">
-            {salonForm.pricingType === 'range' ? 'Minimum Price' : 'Price'}
+          <label className="a-label" htmlFor="salon-price-input">
+            {salonForm.pricingType === 'range' ? 'Minimum Price (KSh)' : 'Price (KSh)'}
           </label>
           <input
+            id="salon-price-input"
+            name="price"
+            type="text"
+            inputMode="numeric"
             className={salonFormErrors.price ? 'a-input invalid' : 'a-input'}
-            placeholder="Kshs 120"
-            value={salonForm.priceDisplay}
+            placeholder="e.g. 1500"
+            value={salonForm.price}
             onChange={onSalonChange('price')}
             onBlur={onSalonFieldBlur('price')}
           />
+          {salonForm.price ? (
+            <span className="a-hint" style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '2px' }}>
+              Preview: {formatCurrency(salonForm.price)}
+            </span>
+          ) : null}
           {salonFormErrors.price ? (
             <span className="a-error">{salonFormErrors.price}</span>
           ) : null}
         </div>
         {salonForm.pricingType === 'range' ? (
           <div className="a-fg">
-            <label className="a-label">Maximum Price</label>
+            <label className="a-label" htmlFor="salon-price-max-input">Maximum Price (KSh)</label>
             <input
+              id="salon-price-max-input"
+              name="priceMax"
+              type="text"
+              inputMode="numeric"
               className={salonFormErrors.priceMax ? 'a-input invalid' : 'a-input'}
-              placeholder="Kshs 250"
-              value={salonForm.priceMaxDisplay}
+              placeholder="e.g. 2500"
+              value={salonForm.priceMax}
               onChange={onSalonChange('priceMax')}
               onBlur={onSalonFieldBlur('priceMax')}
             />
+            {salonForm.priceMax ? (
+              <span className="a-hint" style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '2px' }}>
+                Preview: {formatCurrency(salonForm.priceMax)}
+              </span>
+            ) : null}
             {salonFormErrors.priceMax ? (
               <span className="a-error">{salonFormErrors.priceMax}</span>
             ) : null}
           </div>
         ) : null}
         <div className="a-fg">
-          <label className="a-label">Duration</label>
+          <label className="a-label" htmlFor="salon-duration-input">Duration</label>
           <input
+            id="salon-duration-input"
+            name="duration"
             className="a-input"
             placeholder="5–7 hrs"
             value={salonForm.duration}
@@ -166,8 +191,10 @@ export default function SalonManager({
           />
         </div>
         <div className="a-fg">
-          <label className="a-label">Emoji (Fallback)</label>
+          <label className="a-label" htmlFor="salon-emoji-input">Emoji (Fallback)</label>
           <input
+            id="salon-emoji-input"
+            name="emoji"
             className="a-input"
             placeholder="🌿"
             maxLength={2}
@@ -176,8 +203,10 @@ export default function SalonManager({
           />
         </div>
         <div className="a-fg full">
-          <label className="a-label">Description</label>
+          <label className="a-label" htmlFor="salon-desc-input">Description</label>
           <input
+            id="salon-desc-input"
+            name="description"
             className={salonFormErrors.desc ? 'a-input invalid' : 'a-input'}
             placeholder="Short style description (required for published styles)"
             value={salonForm.desc}
@@ -189,8 +218,10 @@ export default function SalonManager({
           ) : null}
         </div>
         <div className="a-fg full">
-          <label className="a-label">Internal Note (Admin Only)</label>
+          <label className="a-label" htmlFor="salon-internal-note-input">Internal Note (Admin Only)</label>
           <textarea
+            id="salon-internal-note-input"
+            name="internalNote"
             className="a-input"
             placeholder="Private notes, style tips, or supplier details (never shown to customers)"
             value={salonForm.internalNote || ''}

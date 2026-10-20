@@ -21,7 +21,6 @@ import BeadManager from './sections/BeadManager'
 import BookingsManager from './sections/BookingsManager'
 import OrdersManager from './sections/OrdersManager'
 import PhotoPreviewModal from './sections/PhotoPreviewModal'
-import formatCurrency from '../../utils/formatCurrency'
 import { SkeletonRow } from '../layout/Skeletons'
 import { db } from '../../firebase'
 import { sendDynamicEmail } from '../../utils/emailService'
@@ -44,8 +43,9 @@ import {
   Sun,
 } from 'lucide-react'
 import { sanitizeVideos } from '../../utils/tiktok'
-import { normalizePriceInput } from '../../utils/pricingUtils'
 import { lintAllCatalogs } from '../../utils/catalogLint'
+import { buildInventoryPayload } from '../../utils/adminPayload'
+import { reportAdminFirestoreError } from '../../utils/firestoreErrors'
 
 const initialSalonForm = {
   name: '',
@@ -259,6 +259,7 @@ function AdminView({
   const [isSecurityOpen, setIsSecurityOpen] = useState(false)
   const [dashboardFeedback, setDashboardFeedback] = useState(null)
   const [inventoryEditForm, setInventoryEditForm] = useState(initialInventoryEditForm)
+  const [originalInventoryItem, setOriginalInventoryItem] = useState(null)
   const [inventoryEditFeedback, setInventoryEditFeedback] = useState(null)
   const [isSavingInventoryEdit, setIsSavingInventoryEdit] = useState(false)
   const [isReminderOpen, setIsReminderOpen] = useState(false)
@@ -440,11 +441,10 @@ function AdminView({
   const handleSalonChange = (field) => (event) => {
     const { value } = event.target
     if (field === 'price' || field === 'priceMax') {
-      const normalized = normalizePriceInput(value)
+      const rawDigits = value.replace(/[^0-9]/g, '')
       setSalonForm((prev) => ({
         ...prev,
-        [field]: normalized.raw,
-        [field === 'price' ? 'priceDisplay' : 'priceMaxDisplay']: normalized.display,
+        [field]: rawDigits,
       }))
       setSalonFormErrors((prev) => ({ ...prev, [field]: '' }))
       return
@@ -454,10 +454,7 @@ function AdminView({
       setSalonForm((prev) => ({
         ...prev,
         pricingType: value === 'range' ? 'range' : 'fixed',
-        priceMax:
-          value === 'range' ? prev.priceMax : '',
-        priceMaxDisplay:
-          value === 'range' ? prev.priceMaxDisplay : '',
+        priceMax: value === 'range' ? prev.priceMax : '',
       }))
       setSalonFormErrors((prev) => ({ ...prev, price: '', priceMax: '' }))
       return
@@ -473,11 +470,10 @@ function AdminView({
   const handleBeadChange = (field) => (event) => {
     const { value } = event.target
     if (field === 'price' || field === 'priceMax') {
-      const normalized = normalizePriceInput(value)
+      const rawDigits = value.replace(/[^0-9]/g, '')
       setBeadForm((prev) => ({
         ...prev,
-        [field]: normalized.raw,
-        [field === 'price' ? 'priceDisplay' : 'priceMaxDisplay']: normalized.display,
+        [field]: rawDigits,
       }))
       setBeadFormErrors((prev) => ({ ...prev, [field]: '' }))
       return
@@ -487,10 +483,7 @@ function AdminView({
       setBeadForm((prev) => ({
         ...prev,
         pricingType: value === 'range' ? 'range' : 'fixed',
-        priceMax:
-          value === 'range' ? prev.priceMax : '',
-        priceMaxDisplay:
-          value === 'range' ? prev.priceMaxDisplay : '',
+        priceMax: value === 'range' ? prev.priceMax : '',
       }))
       setBeadFormErrors((prev) => ({ ...prev, price: '', priceMax: '' }))
       return
@@ -542,11 +535,10 @@ function AdminView({
   const handleInventoryEditChange = (field) => (event) => {
     const { value } = event.target
     if (field === 'price' || field === 'priceMax') {
-      const normalized = normalizePriceInput(value)
+      const rawDigits = value.replace(/[^0-9]/g, '')
       setInventoryEditForm((prev) => ({
         ...prev,
-        [field]: normalized.raw,
-        [field === 'price' ? 'priceDisplay' : 'priceMaxDisplay']: normalized.display,
+        [field]: rawDigits,
       }))
       return
     }
@@ -556,7 +548,6 @@ function AdminView({
         ...prev,
         pricingType: value === 'range' ? 'range' : 'fixed',
         priceMax: value === 'range' ? prev.priceMax : '',
-        priceMaxDisplay: value === 'range' ? prev.priceMaxDisplay : '',
       }))
       return
     }
@@ -666,10 +657,8 @@ function AdminView({
       type,
       name: item.name,
       pricingType,
-      price: Number(item.price) || 0,
-      priceMax: pricingType === 'range' && item.priceMax ? Number(item.priceMax) : '',
-      priceDisplay: formatCurrency(item.price),
-      priceMaxDisplay: pricingType === 'range' && item.priceMax ? formatCurrency(item.priceMax) : '',
+      price: item.price ? String(item.price) : '',
+      priceMax: pricingType === 'range' && item.priceMax ? String(item.priceMax) : '',
       duration: item.duration ?? '',
       stock: type === 'beads' ? String(item.stock ?? 0) : '',
       desc: item.desc ?? item.description ?? '',
@@ -682,11 +671,28 @@ function AdminView({
       initialVideos: itemVideos,
       pendingVideoUrl: '',
     })
+    setOriginalInventoryItem({
+      ...item,
+      type,
+      pricingType,
+      price: Number(item.price) || 0,
+      priceMax: pricingType === 'range' && item.priceMax ? Number(item.priceMax) : null,
+      duration: item.duration ?? '',
+      stock: type === 'beads' ? Number(item.stock) || 0 : undefined,
+      desc: item.desc ?? item.description ?? '',
+      variant: item.variant ?? '',
+      status: item.status === 'draft' ? 'draft' : 'published',
+      internalNote: item.internalNote ?? '',
+      assetUrl: item.assetUrl || '',
+      images: Array.isArray(item.images) ? item.images : (item.assetUrl ? [item.assetUrl] : []),
+      videos: itemVideos,
+    })
     setInventoryEditFeedback(null)
   }
 
   const closeInventoryEdit = () => {
     setInventoryEditForm(initialInventoryEditForm)
+    setOriginalInventoryItem(null)
     setInventoryEditFeedback(null)
   }
 
@@ -701,44 +707,19 @@ function AdminView({
       return
     }
 
-    const isPublishing = inventoryEditForm.status !== 'draft'
-    const pricingType = inventoryEditForm.pricingType === 'range' ? 'range' : 'fixed'
-    const priceValue = Number(inventoryEditForm.price)
-    const priceMaxValue = pricingType === 'range' ? Number(inventoryEditForm.priceMax) : null
+    const payloadResult = buildInventoryPayload(inventoryEditForm, originalInventoryItem || {})
+    if (payloadResult.error) {
+      setInventoryEditFeedback({
+        type: 'error',
+        message: payloadResult.error,
+      })
+      return
+    }
 
-    if (isPublishing) {
-      if (!priceValue || priceValue <= 0) {
-        setInventoryEditFeedback({
-          type: 'error',
-          message: 'Enter a valid price before publishing.',
-        })
-        return
-      }
-
-      if (pricingType === 'range') {
-        if (!priceMaxValue || priceMaxValue <= 0) {
-          setInventoryEditFeedback({
-            type: 'error',
-            message: 'Enter a valid maximum price.',
-          })
-          return
-        }
-        if (priceMaxValue <= priceValue) {
-          setInventoryEditFeedback({
-            type: 'error',
-            message: 'Maximum price must be greater than minimum price.',
-          })
-          return
-        }
-      }
-
-      if (!inventoryEditForm.desc.trim()) {
-        setInventoryEditFeedback({
-          type: 'error',
-          message: 'Description is required when publishing.',
-        })
-        return
-      }
+    if (!payloadResult.hasChanges) {
+      pushDashboardFeedback('success', 'No changes detected to update.')
+      closeInventoryEdit()
+      return
     }
 
     setIsSavingInventoryEdit(true)
@@ -749,37 +730,11 @@ function AdminView({
         ? SALON_STYLES_COLLECTION
         : BEAD_PRODUCTS_COLLECTION
 
-    const payload = {
-      pricingType,
-      price: priceValue || 0,
-      priceMax: pricingType === 'range' ? priceMaxValue : null,
-      variant: inventoryEditForm.variant?.trim() || '',
-      description: inventoryEditForm.desc.trim() || '',
-      status: isPublishing ? 'published' : 'draft',
-      internalNote: inventoryEditForm.internalNote?.trim() || '',
-      updatedAt: serverTimestamp(),
-    }
-
-    if (inventoryEditForm.type === 'salon') {
-      payload.duration = inventoryEditForm.duration.trim() || '—'
-      payload.assetUrl = inventoryEditForm.image?.assetUrl || ''
-    } else {
-      payload.stock = Math.max(0, Number.parseInt(inventoryEditForm.stock, 10) || 0)
-      const images = (Array.isArray(inventoryEditForm.images) ? inventoryEditForm.images : [])
-        .map((img) => img?.assetUrl || img?.previewUrl || (typeof img === 'string' ? img : ''))
-        .filter(Boolean)
-      payload.images = images
-      payload.assetUrl = images[0] || ''
-    }
-
-    const currentVideos = sanitizeVideos(inventoryEditForm.videos)
-    const initialVideos = sanitizeVideos(inventoryEditForm.initialVideos)
-    if (JSON.stringify(currentVideos) !== JSON.stringify(initialVideos)) {
-      payload.videos = currentVideos
-    }
-
     try {
-      await updateDoc(doc(db, collectionName, String(inventoryEditForm.id)), payload)
+      await updateDoc(doc(db, collectionName, String(inventoryEditForm.id)), {
+        ...payloadResult.payload,
+        updatedAt: serverTimestamp(),
+      })
       closeInventoryEdit()
       pushDashboardFeedback(
         'success',
@@ -789,9 +744,10 @@ function AdminView({
       )
     } catch (error) {
       console.error('Failed to update inventory item:', error)
+      const message = reportAdminFirestoreError(error, 'update_inventory')
       setInventoryEditFeedback({
         type: 'error',
-        message: 'Could not save these inventory changes to Firestore.',
+        message,
       })
     } finally {
       setIsSavingInventoryEdit(false)
@@ -868,7 +824,8 @@ function AdminView({
       )
     } catch (error) {
       console.error('Failed to save salon style:', error)
-      pushDashboardFeedback('error', 'Could not save the hair style to Firestore.')
+      const message = reportAdminFirestoreError(error, 'add_salon')
+      pushDashboardFeedback('error', message)
     }
   }
 
@@ -947,7 +904,8 @@ function AdminView({
       )
     } catch (error) {
       console.error('Failed to save bead product:', error)
-      pushDashboardFeedback('error', 'Could not save the bead product to Firestore.')
+      const message = reportAdminFirestoreError(error, 'add_bead')
+      pushDashboardFeedback('error', message)
     }
   }
 
@@ -957,7 +915,8 @@ function AdminView({
       pushDashboardFeedback('success', 'Hair style removed successfully.')
     } catch (error) {
       console.error('Failed to delete salon style:', error)
-      pushDashboardFeedback('error', 'Could not delete the hair style from Firestore.')
+      const message = reportAdminFirestoreError(error, 'delete_salon')
+      pushDashboardFeedback('error', message)
     }
   }
 
@@ -967,7 +926,8 @@ function AdminView({
       pushDashboardFeedback('success', 'Bead product removed successfully.')
     } catch (error) {
       console.error('Failed to delete bead product:', error)
-      pushDashboardFeedback('error', 'Could not delete the bead product from Firestore.')
+      const message = reportAdminFirestoreError(error, 'delete_bead')
+      pushDashboardFeedback('error', message)
     }
   }
 
@@ -990,7 +950,8 @@ function AdminView({
       )
     } catch (error) {
       console.error('Failed to bulk unpublish flagged items:', error)
-      pushDashboardFeedback('error', 'Could not unpublish flagged items from Firestore.')
+      const message = reportAdminFirestoreError(error, 'bulk_unpublish')
+      pushDashboardFeedback('error', message)
     }
   }
 
@@ -1000,7 +961,8 @@ function AdminView({
       pushDashboardFeedback('success', 'Booking status updated successfully.')
     } catch (error) {
       console.error('Failed to update booking status:', error)
-      pushDashboardFeedback('error', 'Could not update the booking status in Firestore.')
+      const message = reportAdminFirestoreError(error, 'update_booking')
+      pushDashboardFeedback('error', message)
     }
   }
 
@@ -1010,7 +972,8 @@ function AdminView({
       pushDashboardFeedback('success', 'Order status updated successfully.')
     } catch (error) {
       console.error('Failed to update order status:', error)
-      pushDashboardFeedback('error', 'Could not update the order status in Firestore.')
+      const message = reportAdminFirestoreError(error, 'update_order')
+      pushDashboardFeedback('error', message)
     }
   }
 

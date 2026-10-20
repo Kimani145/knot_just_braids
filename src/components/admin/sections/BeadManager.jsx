@@ -4,6 +4,7 @@ import AdminPanel from '../AdminPanel'
 import ImageUploader from '../ImageUploader'
 import VideoLinksField from '../VideoLinksField'
 import { formatPriceRange } from '../../../utils/pricingUtils'
+import formatCurrency from '../../../utils/formatCurrency'
 
 export default function BeadManager({
   beadProducts = [],
@@ -89,8 +90,10 @@ export default function BeadManager({
             </div>
           </div>
           <div className="a-fg">
-            <label className="a-label">Product Name</label>
+            <label className="a-label" htmlFor="bead-name-input">Product Name</label>
             <input
+              id="bead-name-input"
+              name="name"
               className={beadFormErrors.name ? 'a-input invalid' : 'a-input'}
               placeholder="Waist Beads"
               value={beadForm.name}
@@ -102,8 +105,10 @@ export default function BeadManager({
             ) : null}
           </div>
           <div className="a-fg">
-            <label className="a-label">Variant (Optional)</label>
+            <label className="a-label" htmlFor="bead-variant-input">Variant (Optional)</label>
             <input
+              id="bead-variant-input"
+              name="variant"
               className="a-input"
               list="bead-variant-options"
               placeholder="e.g. Hand-painted, Original finish"
@@ -119,8 +124,10 @@ export default function BeadManager({
             </datalist>
           </div>
           <div className="a-fg full">
-            <label className="a-label">Description</label>
+            <label className="a-label" htmlFor="bead-desc-input">Description</label>
             <input
+              id="bead-desc-input"
+              name="description"
               className={beadFormErrors.desc ? 'a-input invalid' : 'a-input'}
               placeholder="Short product description (required for published products)"
               value={beadForm.desc}
@@ -132,8 +139,10 @@ export default function BeadManager({
             ) : null}
           </div>
           <div className="a-fg full">
-            <label className="a-label">Internal Note (Admin Only)</label>
+            <label className="a-label" htmlFor="bead-internal-note-input">Internal Note (Admin Only)</label>
             <textarea
+              id="bead-internal-note-input"
+              name="internalNote"
               className="a-input"
               placeholder="Private procurement notes, supplier links, or stock locations"
               value={beadForm.internalNote || ''}
@@ -142,8 +151,10 @@ export default function BeadManager({
             />
           </div>
           <div className="a-fg">
-            <label className="a-label">Emoji (Fallback)</label>
+            <label className="a-label" htmlFor="bead-emoji-input">Emoji (Fallback)</label>
             <input
+              id="bead-emoji-input"
+              name="emoji"
               className="a-input"
               placeholder="📿"
               maxLength={2}
@@ -203,38 +214,58 @@ export default function BeadManager({
             </button>
           </div>
           <div className="a-fg">
-            <label className="a-label">
-              {beadForm.pricingType === 'range' ? 'Minimum Price' : 'Price'}
+            <label className="a-label" htmlFor="bead-price-input">
+              {beadForm.pricingType === 'range' ? 'Minimum Price (KSh)' : 'Price (KSh)'}
             </label>
             <input
+              id="bead-price-input"
+              name="price"
+              type="text"
+              inputMode="numeric"
               className={beadFormErrors.price ? 'a-input invalid' : 'a-input'}
-              placeholder="Kshs 25"
-              value={beadForm.priceDisplay}
+              placeholder="e.g. 25"
+              value={beadForm.price}
               onChange={onBeadChange('price')}
               onBlur={onBeadFieldBlur('price')}
             />
+            {beadForm.price ? (
+              <span className="a-hint" style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '2px' }}>
+                Preview: {formatCurrency(beadForm.price)}
+              </span>
+            ) : null}
             {beadFormErrors.price ? (
               <span className="a-error">{beadFormErrors.price}</span>
             ) : null}
           </div>
           {beadForm.pricingType === 'range' ? (
             <div className="a-fg">
-              <label className="a-label">Maximum Price</label>
+              <label className="a-label" htmlFor="bead-price-max-input">Maximum Price (KSh)</label>
               <input
+                id="bead-price-max-input"
+                name="priceMax"
+                type="text"
+                inputMode="numeric"
                 className={beadFormErrors.priceMax ? 'a-input invalid' : 'a-input'}
-                placeholder="Kshs 40"
-                value={beadForm.priceMaxDisplay}
+                placeholder="e.g. 40"
+                value={beadForm.priceMax}
                 onChange={onBeadChange('priceMax')}
                 onBlur={onBeadFieldBlur('priceMax')}
               />
+              {beadForm.priceMax ? (
+                <span className="a-hint" style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '2px' }}>
+                  Preview: {formatCurrency(beadForm.priceMax)}
+                </span>
+              ) : null}
               {beadFormErrors.priceMax ? (
                 <span className="a-error">{beadFormErrors.priceMax}</span>
               ) : null}
             </div>
           ) : null}
           <div className="a-fg">
-            <label className="a-label">Stock Qty</label>
+            <label className="a-label" htmlFor="bead-stock-input">Stock Qty</label>
             <input
+              id="bead-stock-input"
+              name="stock"
               className="a-input"
               placeholder="10"
               type="number"

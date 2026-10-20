@@ -1,8 +1,9 @@
 import { useMemo } from 'react'
-import { AlertCircle, CheckCircle2, Images, Play, Trash2 } from 'lucide-react'
+import { AlertCircle, CheckCircle2, ExternalLink, Images, Play, Trash2 } from 'lucide-react'
 import {
   MAX_VIDEOS_PER_ITEM,
   TIKTOK_URL_ERRORS,
+  buildWatchUrl,
   parseTikTokUrl,
 } from '../../utils/tiktok'
 
@@ -87,10 +88,28 @@ function VideoLinksField({
                     <Play size={13} fill="currentColor" />
                   )}
                 </span>
-                <span className="a-video-item-handle">@{vid.handle}</span>
-                <span className="a-video-item-id">
-                  {vid.kind === 'photo' ? '(Photo Post)' : `(ID: ...${vid.id.slice(-6)})`}
+                <span className="a-video-item-handle">
+                  {vid.kind === 'photo' ? 'Photo post' : 'Video'} · @{vid.handle} · ...{String(vid.id || '').slice(-4)}
                 </span>
+                <a
+                  href={buildWatchUrl(vid)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="a-video-external-link"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '3px',
+                    marginLeft: '0.5rem',
+                    fontSize: '0.75rem',
+                    color: 'var(--muted)',
+                    textDecoration: 'underline',
+                  }}
+                  title="Open this post on TikTok"
+                >
+                  <span>Open on TikTok</span>
+                  <ExternalLink size={11} />
+                </a>
               </div>
               <button
                 type="button"

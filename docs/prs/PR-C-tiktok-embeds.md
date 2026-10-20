@@ -14,14 +14,40 @@ Resolves TikTok post embedding failures by separating video posts from photo-mod
      - `3001`: `player-timeout`
      - `3002`: `player-runtime-failure`
    - Replaces abrasive error alerts with calm, serene messaging. Suppresses infinite retry buttons on permanent failures.
-3. **oEmbed Resolver & Idempotent Script Loader (`src/utils/tiktokOembed.js`):**
-   - Implements `fetchTikTokOEmbed` with in-memory caching and 8-second network abort timeout.
-   - Idempotently loads `https://www.tiktok.com/embed.js` at most once per page.
+3. **oEmbed Resolver & Idempotent Script Loader (`src/utils/tiktokOembed.js` & `api/tiktok-oembed.js`):**
+   - Implements `fetchTikTokOEmbed` calling `/api/tiktok-oembed?url=...` serverless proxy (preventing browser CORS failure), with in-memory caching and 8-second network abort timeout.
+   - Idempotently loads `https://www.tiktok.com/embed.js` and re-initializes TikTok embed processing across multiple mounts.
    - Mounts oEmbed markup safely via `createContextualFragment` (respecting zero-`innerHTML` security constraints).
 4. **Branded Fallback Card:**
-   - When oEmbed is unavailable (e.g. sandboxed/restricted/offline), renders a branded card with cover photo, `@handle` badge, hairstyle title, and a prominent call-to-action: "View this hairstyle gallery on TikTok ↗".
+   - When oEmbed is unavailable (e.g. sandboxed/restricted/offline or upstream HTTP 400), renders a branded card with cover photo, `@handle` badge, hairstyle title, and a prominent call-to-action: "View this hairstyle gallery on TikTok ↗".
 5. **Admin Guidance (`VideoLinksField.jsx`):**
    - Added real-time inline hint when an admin enters a photo post link.
+
+---
+
+## Photo oEmbed fallback regression: CORS and embed initialization
+
+### Context & Empirical Diagnosis
+Direct client-side invocation of `https://www.tiktok.com/oembed` was subject to browser CORS policies. Moreover, live empirical probing via curl established:
+- **Photo URL:** `curl -i "https://www.tiktok.com/oembed?url=https%3A%2F%2Fwww.tiktok.com%2F%40knot.justbraids%2Fphoto%2F7681345289243905298"` returns `HTTP/2 400 {"message":"Something went wrong","code":400}`.
+- **Video URL:** `curl -i "https://www.tiktok.com/oembed?url=https%3A%2F%2Fwww.tiktok.com%2F%40knot.justbraids%2Fvideo%2F7671327868349123848"` returns `HTTP/2 200` with full embed HTML and `access-control-allow-origin: *`.
+- **Photo ID via /video/ URL:** returns an iframe to `player/v1/7681345289243905298` which then crashes with `1001 INVALID_VIDEO`.
+
+Thus, upstream TikTok oEmbed currently does not serve blockquote HTML for `/photo/` paths. Moving oEmbed requests server-side eliminates CORS issues completely, handles future oEmbed support when TikTok enables it, and safely activates the branded fallback card when upstream returns 400 or lacks HTML.
+
+### Resolution & Implementation
+1. **Serverless Proxy (`api/tiktok-oembed.js`):**
+   - Implemented `GET /api/tiktok-oembed?url=<encoded-url>`.
+   - Strictly validates and canonicalizes the input URL against `tiktok.com` / `*.tiktok.com` and pattern `/@handle/(video|photo)/<id>` to prevent open-proxy misuse.
+   - Enforces an 8-second `AbortController` timeout and caches responses in memory (LRU cap 200).
+   - Strips upstream headers and returns a clean `{ ok: boolean, html?: string, author_name?: string, title?: string, thumbnail_url?: string }` payload.
+2. **Client Integration (`src/utils/tiktokOembed.js`):**
+   - Calls `/api/tiktok-oembed?url=...` instead of calling TikTok directly.
+   - Development diagnostic logging via `console.info` (guarded by `import.meta.env?.DEV`).
+   - Safely mounts markup via `createContextualFragment`.
+   - Embed script loader dynamically re-invokes or injects `embed.js` to process new `.tiktok-embed` blockquotes.
+3. **Resilient Fallback:**
+   - If oEmbed response lacks valid HTML or upstream returns 400, cleanly transitions to the branded fallback card ("View this hairstyle gallery on TikTok ↗"). Photo posts are never routed to `/player/v1/`.
 
 ---
 

@@ -12,6 +12,7 @@ import {
   buildOEmbedUrl,
   buildPlayerSrc,
 } from '../src/utils/tiktok.js'
+import { validateAndNormalizeTikTokUrl } from '../api/tiktok-oembed.js'
 
 test('PR-C: TIKTOK_PLAYER_ERRORS maps error codes according to specification', () => {
   assert.equal(TIKTOK_PLAYER_ERRORS[1001], 'invalid-or-unsupported-media')
@@ -102,6 +103,43 @@ test('PR-C: VideoLinksField provides inline helper for photo posts', () => {
     code.includes('Photo-mode post: TikTok\'s embed player may restrict playback'),
     'VideoLinksField must display helper hint when a photo URL is entered'
   )
+})
+
+test('PR-C: fetchTikTokOEmbed routes through /api/tiktok-oembed proxy, not directly to tiktok.com', () => {
+  const helperPath = path.resolve('src/utils/tiktokOembed.js')
+  assert.ok(fs.existsSync(helperPath), 'src/utils/tiktokOembed.js must exist')
+
+  const code = fs.readFileSync(helperPath, 'utf8')
+
+  // Verify client calls server route
+  assert.ok(
+    code.includes('const endpoint = `/api/tiktok-oembed?url='),
+    'Client fetchTikTokOEmbed must call /api/tiktok-oembed proxy to eliminate browser CORS'
+  )
+  assert.ok(
+    !code.includes('https://www.tiktok.com/oembed?url='),
+    'Client must never directly call upstream https://www.tiktok.com/oembed from the browser'
+  )
+})
+
+test('PR-C: serverless route validates and canonicalizes TikTok URLs, blocking open-proxy abuse', () => {
+  // Valid canonical URLs
+  assert.equal(
+    validateAndNormalizeTikTokUrl('https://www.tiktok.com/@knot.justbraids/photo/7681345289243905298'),
+    'https://www.tiktok.com/@knot.justbraids/photo/7681345289243905298'
+  )
+  assert.equal(
+    validateAndNormalizeTikTokUrl('https://tiktok.com/@knot.justbraids/video/7671327868349123848?utm=test'),
+    'https://www.tiktok.com/@knot.justbraids/video/7671327868349123848'
+  )
+
+  // Invalid or attacker-controlled URLs
+  assert.equal(validateAndNormalizeTikTokUrl('https://evil.com/video/123456789012345'), null)
+  assert.equal(validateAndNormalizeTikTokUrl('http://www.tiktok.com/@knot.justbraids/video/7671327868349123848'), null)
+  assert.equal(validateAndNormalizeTikTokUrl('javascript:alert(1)'), null)
+  assert.equal(validateAndNormalizeTikTokUrl('https://not-tiktok.com/@a/photo/123456789012345'), null)
+  assert.equal(validateAndNormalizeTikTokUrl(''), null)
+  assert.equal(validateAndNormalizeTikTokUrl(null), null)
 })
 
 test('PR-C: Verified control test vectors', () => {

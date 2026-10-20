@@ -6,7 +6,7 @@
 - **Selected Resolution Strategy:**
   1. **Strict Content-Type Routing:**
      - `/video/<numeric-id>` → Official `/player/v1/{id}` iframe.
-     - `/photo/<numeric-id>` → Official TikTok oEmbed first (`https://www.tiktok.com/oembed?url={encoded_tiktok_url}`), degrading to a branded fallback card. **Strictly forbidden: routing photo posts to `/player/v1/`.**
+     - `/photo/<numeric-id>` → Official TikTok oEmbed first (`/api/tiktok-oembed?url={encoded_tiktok_url}`), degrading to a branded fallback card. **Strictly forbidden: routing photo posts to `/player/v1/`.**
      - Unknown / shortened URLs → Attempt oEmbed; on failure, render branded fallback card. Never route unknown URLs blindly to `/player/v1/`.
   2. **Error Code Mapping:**
      - Standardize error codes (`1001: invalid-or-unsupported-media`, `2001: embed-load-failure`, `3001: player-timeout`, `3002: player-runtime-failure`) with calm, non-alarming copy.
@@ -53,7 +53,7 @@ Citations from TikTok Developer Documentation (Embed Player API & oEmbed):
 ---
 
 ## 4. Community Evidence (R-C)
-- GitHub issues across open-source tools (e.g. `yt-dlp`, web embed wrappers) confirm that TikTok's `player/v1/` endpoint treats photo-mode slideshows differently than video streams, and web embedding of carousels is unsupported via `/player/v1/`.
+- GitHub issues across open-source tools (e.g. `yt-dlp`, web embed wrappers) corroborate that TikTok's `player/v1/` endpoint treats photo-mode slideshows differently than video streams, and web embedding of carousels is unsupported via `/player/v1/`.
 - Full script embeds (`embed.js`) require user activation to avoid unsolicited tracking cookies. Our facade + lazy resolution architecture maintains optimal performance and privacy.
 
 ---
@@ -66,3 +66,39 @@ Citations from TikTok Developer Documentation (Embed Player API & oEmbed):
    - Strictly intercepts photo posts and routes them to oEmbed resolution with branded fallback card.
 4. **Admin Guidance (`VideoLinksField.jsx`):**
    - Displays real-time help hint when an admin enters a photo-mode URL.
+
+---
+
+## 6. Photo oEmbed Fallback Regression: CORS and Embed Initialization
+
+### Investigation & Root Cause Diagnosis
+Direct terminal inspection against TikTok's live API confirmed two distinct technical constraints:
+1. **Browser CORS Restriction:** Direct client-side `fetch('https://www.tiktok.com/oembed')` from a browser origin is subject to browser CORS policies.
+2. **Upstream TikTok Photo Support:**
+   Direct server-side verification using curl yielded:
+   ```bash
+   curl -i "https://www.tiktok.com/oembed?url=https%3A%2F%2Fwww.tiktok.com%2F%40knot.justbraids%2Fphoto%2F7681345289243905298"
+   ```
+   **Response Observed:**
+   ```http
+   HTTP/2 400
+   content-type: application/json; charset=utf-8
+   {"message":"Something went wrong","code":400}
+   ```
+   In contrast, video posts return `HTTP 200` with full embed HTML and `access-control-allow-origin: *`.
+   TikTok's current public oEmbed endpoint specifically returns `HTTP 400` when passed `/photo/` paths. When the path is forced to `/video/` for the same post ID, TikTok returns an iframe to `player/v1/` which then rejects with error `1001 INVALID_VIDEO`.
+
+### Architectural Resolution
+1. **Serverless Proxy Route (`api/tiktok-oembed.js`):**
+   - Moved oEmbed resolution server-side.
+   - Validates and canonicalizes TikTok URLs against strict patterns (`/@handle/(video|photo)/<id>`), eliminating open-proxy attack vectors.
+   - Employs an 8-second `AbortController` timeout and in-memory caching (`Map`).
+   - Normalizes error responses to `{ ok: false, reason: 'non-ok-status' | 'missing-html' | 'timeout' }`.
+2. **Client-Side Integration (`src/utils/tiktokOembed.js`):**
+   - Client calls `/api/tiktok-oembed?url=...` instead of calling TikTok directly.
+   - Includes development-only diagnostic logging (`TikTokOEmbedFailureReason`).
+   - Safely mounts embed HTML via `createContextualFragment`.
+   - Idempotently loads and re-initializes `https://www.tiktok.com/embed.js` upon new blockquote insertion.
+3. **Graceful Fallback Preservation:**
+   - Because TikTok returns HTTP 400 for photo URLs, the client transitions cleanly to the branded fallback card (`role="region"` with creator handle, title, cover image, and direct link).
+   - The user never experiences blank frames, broken images, or error 1001 crashes.

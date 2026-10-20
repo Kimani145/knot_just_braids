@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { AlertCircle, Images, Play, RefreshCw } from 'lucide-react'
-import { buildPlayerSrc, buildWatchUrl } from '../../utils/tiktok'
+import { buildPlayerSrc } from '../../utils/tiktok'
 import MediaPlaceholder from '../common/MediaPlaceholder'
 
 function TikTokPlayer({
@@ -82,7 +82,6 @@ function TikTokPlayer({
   }
 
   const playerSrc = buildPlayerSrc(video.id)
-  const watchUrl = buildWatchUrl(video)
   const itemName = item?.name || 'Product'
 
   const handleStartPlay = () => {
@@ -116,16 +115,6 @@ function TikTokPlayer({
                   Slow mobile connection or embedding restricted by TikTok.
                 </p>
                 <div className="tiktok-error-actions">
-                  {watchUrl ? (
-                    <a
-                      href={watchUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="tiktok-btn-watch"
-                    >
-                      {isPhotoPost ? 'View Photos on TikTok ↗' : 'Watch on TikTok ↗'}
-                    </a>
-                  ) : null}
                   <button
                     type="button"
                     className="tiktok-btn-retry"
@@ -174,7 +163,7 @@ function TikTokPlayer({
                 <MediaPlaceholder
                   item={item}
                   isSalon={item?.duration !== undefined}
-                  isVideo
+                  bare
                 />
               )}
               {isPhotoPost ? (
@@ -191,17 +180,12 @@ function TikTokPlayer({
                     <Play size={24} fill="currentColor" />
                   )}
                 </span>
+                <span className="tiktok-facade-title">{itemName}</span>
                 <span className="tiktok-facade-label">
                   {isPhotoPost ? 'Tap to View Photos' : 'Tap to Play'}
                 </span>
               </div>
             </button>
-            <p className="tiktok-disclosure">
-              Plays from TikTok (third party).{' '}
-              <a href="/privacy" className="tiktok-disclosure-link">
-                Privacy Policy
-              </a>
-            </p>
           </div>
         )}
       </div>

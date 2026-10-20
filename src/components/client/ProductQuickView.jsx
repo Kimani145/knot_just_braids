@@ -237,6 +237,12 @@ function ProductQuickViewContent({
         {/* Video footer row outside the carousel to prevent clipping */}
         {isVideoSlide && activeSlide?.video ? (
           <div className="quick-view-video-footer">
+            <p className="tiktok-disclosure">
+              Plays from TikTok (third party).{' '}
+              <a href="/privacy" className="tiktok-disclosure-link">
+                Privacy Policy
+              </a>
+            </p>
             <a
               href={buildWatchUrl(activeSlide.video)}
               target="_blank"

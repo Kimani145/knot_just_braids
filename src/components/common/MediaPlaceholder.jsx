@@ -4,12 +4,24 @@ function MediaPlaceholder({
   item,
   isSalon,
   isVideo = false,
+  bare = false,
   className = '',
 }) {
   const isSalonItem = isSalon ?? (item?.duration !== undefined)
   const bgClass = item?.bg || (isSalonItem ? 'sg1' : 'bg1')
   const itemName = item?.name || (isSalonItem ? 'Salon Style' : 'Bead Product')
   const variant = item?.variant
+
+  if (bare) {
+    return (
+      <div
+        className={`media-placeholder ${bgClass} media-placeholder-bare ${className}`.trim()}
+        aria-hidden="true"
+      >
+        <div className="media-placeholder-pattern" aria-hidden="true" />
+      </div>
+    )
+  }
 
   return (
     <div

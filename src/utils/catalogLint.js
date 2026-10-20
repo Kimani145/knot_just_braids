@@ -1,6 +1,33 @@
 import formatCurrency from './formatCurrency.js'
 
 /**
+ * Default configurable pattern list for detecting placeholder / review content.
+ */
+export const DEFAULT_PLACEHOLDER_PATTERNS = [
+  /needs review/i,
+  /placeholder/i,
+  /owner to confirm/i,
+  /\bTBC\b/i,
+  /\bN-R\b/i,
+]
+
+/**
+ * Checks if a string contains any configured placeholder patterns.
+ *
+ * @param {string} text
+ * @param {RegExp[]} [patterns=DEFAULT_PLACEHOLDER_PATTERNS]
+ * @returns {string|null} The matched substring or null
+ */
+export function checkPlaceholderContent(text, patterns = DEFAULT_PLACEHOLDER_PATTERNS) {
+  if (typeof text !== 'string' || !text.trim()) return null
+  for (const pattern of patterns) {
+    const match = text.match(pattern)
+    if (match) return match[0]
+  }
+  return null
+}
+
+/**
  * Normalizes an item or variant name for comparison.
  * Trims whitespace, lowercases, and collapses internal spaces.
  *
@@ -20,14 +47,18 @@ export function normalizeCatalogName(text) {
  * 2. shared-name-different-price: Items sharing normalized name but with differing prices and lacking variant.
  * 3. trivial-spread: Range items where priceMax - price <= 5.
  * 4. missing-cover: Items without a cover image (neither assetUrl nor images[0]).
+ * 5. placeholder-content: Items with names or descriptions matching placeholder patterns.
  *
  * @param {Array<Object>} items
- * @param {'salon'|'beads'} catalogType
- * @returns {Array<{ id: string, type: string, itemId: string, itemName: string, catalogType: string, message: string, severity: 'warning' }>}
+ * @param {'salon'|'beads'} [catalogType='beads']
+ * @param {object} [options={}]
+ * @param {RegExp[]} [options.placeholderPatterns=DEFAULT_PLACEHOLDER_PATTERNS]
+ * @returns {Array<{ id: string, type: string, itemId: string, itemName: string, catalogType: string, message: string, severity: 'warning', status?: string, description?: string, matchedPattern?: string }>}
  */
-export function lintCatalog(items = [], catalogType = 'beads') {
+export function lintCatalog(items = [], catalogType = 'beads', options = {}) {
   if (!Array.isArray(items)) return []
 
+  const patterns = options.placeholderPatterns || DEFAULT_PLACEHOLDER_PATTERNS
   const warnings = []
   const catalogLabel = catalogType === 'salon' ? 'hair style' : 'bead product'
   const seenPairs = new Set()
@@ -41,6 +72,32 @@ export function lintCatalog(items = [], catalogType = 'beads') {
     const variantA = typeof itemA.variant === 'string' ? itemA.variant.trim() : ''
     const normVariantA = normalizeCatalogName(variantA)
     const priceA = Number(itemA.price) || 0
+
+    // Check individual item: 5. placeholder-content
+    const descA =
+      typeof itemA.description === 'string'
+        ? itemA.description
+        : typeof itemA.desc === 'string'
+          ? itemA.desc
+          : ''
+    const placeholderMatch =
+      checkPlaceholderContent(nameA, patterns) ||
+      checkPlaceholderContent(descA, patterns)
+
+    if (placeholderMatch) {
+      warnings.push({
+        id: `placeholder-content-${itemA.id || i}`,
+        type: 'placeholder-content',
+        itemId: itemA.id || String(i),
+        itemName: nameA || 'Untitled item',
+        catalogType,
+        status: itemA.status || 'published',
+        description: descA,
+        matchedPattern: placeholderMatch,
+        message: `"${nameA || 'Untitled item'}" contains placeholder text ("${placeholderMatch}"). Unpublish or move notes internally.`,
+        severity: 'warning',
+      })
+    }
 
     // Check individual item: 3. trivial-spread (for range pricing)
     if (itemA.pricingType === 'range') {
@@ -128,11 +185,12 @@ export function lintCatalog(items = [], catalogType = 'beads') {
  *
  * @param {Array<Object>} salonStyles
  * @param {Array<Object>} beadProducts
+ * @param {object} [options={}]
  * @returns {Array<Object>}
  */
-export function lintAllCatalogs(salonStyles = [], beadProducts = []) {
+export function lintAllCatalogs(salonStyles = [], beadProducts = [], options = {}) {
   return [
-    ...lintCatalog(salonStyles, 'salon'),
-    ...lintCatalog(beadProducts, 'beads'),
+    ...lintCatalog(salonStyles, 'salon', options),
+    ...lintCatalog(beadProducts, 'beads', options),
   ]
 }

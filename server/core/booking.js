@@ -6,6 +6,8 @@
  */
 
 import { validateBookingPayload } from './validators.js'
+import { isPubliclyVisible } from './catalog.js'
+import { ValidationError } from './errors.js'
 import { logger } from './log.js'
 
 /**
@@ -17,6 +19,21 @@ import { logger } from './log.js'
 export async function processBooking(store, rawPayload) {
   // 1. Strict validation
   const validated = validateBookingPayload(rawPayload)
+
+  // 2. Refuse booking for draft salon styles
+  if (typeof store.listSalonStyles === 'function') {
+    const styles = await store.listSalonStyles()
+    const matchedStyle = (styles || []).find(
+      (s) =>
+        (s.id && (s.id === rawPayload.styleId || s.id === validated.style)) ||
+        (s.name && s.name.trim().toLowerCase() === validated.style.trim().toLowerCase())
+    )
+    if (matchedStyle && !isPubliclyVisible(matchedStyle)) {
+      throw new ValidationError(`Style "${validated.style}" is not currently available for booking`, {
+        field: 'style',
+      })
+    }
+  }
 
   // 2. Build booking document strictly matching Firestore rules schema
   const bookingDoc = {

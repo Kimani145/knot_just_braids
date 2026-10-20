@@ -14,6 +14,18 @@ export default function InventoryQuickEditModal({
 }) {
   const isOpen = Boolean(editForm.id)
 
+  const handleMoveDescToInternalNote = () => {
+    const currentDesc = editForm.desc ? editForm.desc.trim() : ''
+    if (!currentDesc) return
+
+    // Move verbatim into internalNote
+    onChange('internalNote')({ target: { value: currentDesc } })
+    // Leave description empty
+    onChange('desc')({ target: { value: '' } })
+    // Allowed for drafts, switch status to draft
+    onChange('status')({ target: { value: 'draft' } })
+  }
+
   return (
     <div
       className={`overlay${isOpen ? ' open' : ''}`}
@@ -40,6 +52,26 @@ export default function InventoryQuickEditModal({
           <form className="form-stack" onSubmit={onSubmit}>
             <div className="note">
               Updating <strong>{editForm.name}</strong>
+            </div>
+
+            <div className="fg">
+              <label>Publish Status</label>
+              <div className="pricing-toggle">
+                <button
+                  type="button"
+                  className={`pricing-toggle-btn${editForm.status !== 'draft' ? ' active' : ''}`}
+                  onClick={() => onChange('status')({ target: { value: 'published' } })}
+                >
+                  Published (Live)
+                </button>
+                <button
+                  type="button"
+                  className={`pricing-toggle-btn${editForm.status === 'draft' ? ' active' : ''}`}
+                  onClick={() => onChange('status')({ target: { value: 'draft' } })}
+                >
+                  Draft (Hidden)
+                </button>
+              </div>
             </div>
 
             <div className="fg">
@@ -127,11 +159,33 @@ export default function InventoryQuickEditModal({
             )}
 
             <div className="fg">
-              <label>Description</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                <label style={{ margin: 0 }}>Description</label>
+                {editForm.desc?.trim() ? (
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    style={{ padding: '2px 8px', fontSize: '0.72rem' }}
+                    onClick={handleMoveDescToInternalNote}
+                    title="Move customer description into internal notes and mark item as Draft"
+                  >
+                    Move this text to internal note
+                  </button>
+                ) : null}
+              </div>
               <textarea
                 value={editForm.desc}
                 onChange={onChange('desc')}
-                placeholder="Short product or style description"
+                placeholder="Customer-visible description (required when publishing, optional for drafts)"
+              />
+            </div>
+
+            <div className="fg">
+              <label>Internal Note (Admin Only)</label>
+              <textarea
+                value={editForm.internalNote || ''}
+                onChange={onChange('internalNote')}
+                placeholder="Private staff notes, styling considerations, or review reminders (never customer-visible)"
               />
             </div>
 
@@ -194,7 +248,7 @@ export default function InventoryQuickEditModal({
                       : 'var(--bead-accent)',
                 }}
               >
-                {isSaving ? 'Saving...' : 'Save Changes'}
+                {isSaving ? 'Saving...' : editForm.status === 'draft' ? 'Save as Draft' : 'Save Changes'}
               </button>
               <button className="btn btn-outline" type="button" onClick={onClose}>
                 Cancel

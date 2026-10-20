@@ -4,6 +4,7 @@ import {
   lintCatalog,
   lintAllCatalogs,
   normalizeCatalogName,
+  checkPlaceholderContent,
 } from './catalogLint.js'
 
 describe('catalogLint utility', () => {
@@ -81,6 +82,46 @@ describe('catalogLint utility', () => {
     assert.equal(missing.length, 1)
     assert.equal(missing[0].itemId, '1')
     assert.match(missing[0].message, /no cover image/)
+  })
+
+  it('detects placeholder content matching configurable patterns', () => {
+    assert.equal(checkPlaceholderContent('Needs review: confirm details'), 'Needs review')
+    assert.equal(checkPlaceholderContent('Placeholder price KSh 1,500'), 'Placeholder')
+    assert.equal(checkPlaceholderContent('Owner to confirm style details'), 'Owner to confirm')
+    assert.equal(checkPlaceholderContent('Price is TBC'), 'TBC')
+    assert.equal(checkPlaceholderContent('Invincible Locs N-R'), 'N-R')
+    assert.equal(checkPlaceholderContent('Loose Braids'), null)
+
+    const items = [
+      {
+        id: 's1',
+        name: 'Invincible Locs N-R',
+        description: 'Needs review: Placeholder price KSh 1,500; owner to confirm style details.',
+        assetUrl: 'https://img/1.jpg',
+        price: 1500,
+      },
+      {
+        id: 's2',
+        name: 'Loose Braids',
+        description: 'Handcrafted loose braids with custom beads.',
+        assetUrl: 'https://img/2.jpg',
+        price: 2500,
+      },
+      {
+        id: 's3',
+        name: 'Braided Style',
+        description: 'Style details are TBC.',
+        assetUrl: 'https://img/3.jpg',
+        price: 1500,
+      },
+    ]
+
+    const warnings = lintCatalog(items, 'salon')
+    const placeholders = warnings.filter((w) => w.type === 'placeholder-content')
+    assert.equal(placeholders.length, 2)
+    assert.equal(placeholders[0].itemId, 's1')
+    assert.equal(placeholders[1].itemId, 's3')
+    assert.match(placeholders[0].message, /placeholder text/)
   })
 
   it('lintAllCatalogs aggregates warnings from both catalogs', () => {

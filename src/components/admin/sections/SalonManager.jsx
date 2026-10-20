@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Info, Pencil, Trash2, Video } from 'lucide-react'
 import AdminPanel from '../AdminPanel'
 import ImageUploader from '../ImageUploader'
@@ -23,6 +23,17 @@ export default function SalonManager({
   getItemAssetUrl,
   renderSkeletonRows,
 }) {
+  const [statusFilter, setStatusFilter] = useState('all')
+
+  const publishedCount = salonStyles.filter((s) => s.status !== 'draft').length
+  const draftCount = salonStyles.filter((s) => s.status === 'draft').length
+
+  const filteredStyles = salonStyles.filter((s) => {
+    if (statusFilter === 'published') return s.status !== 'draft'
+    if (statusFilter === 'draft') return s.status === 'draft'
+    return true
+  })
+
   return (
     <AdminPanel
       title="Hair Styles Gallery"
@@ -35,6 +46,27 @@ export default function SalonManager({
         style={{ marginBottom: '1rem' }}
         onSubmit={onAddSalon}
       >
+        <div className="a-fg full">
+          <label className="a-label">Publish Status</label>
+          <div className="pricing-toggle">
+            <button
+              type="button"
+              className={`pricing-toggle-btn${salonForm.status !== 'draft' ? ' active' : ''}`}
+              onClick={onSalonChange('status')}
+              value="published"
+            >
+              Published (Customer-Visible)
+            </button>
+            <button
+              type="button"
+              className={`pricing-toggle-btn${salonForm.status === 'draft' ? ' active' : ''}`}
+              onClick={onSalonChange('status')}
+              value="draft"
+            >
+              Draft (Hidden)
+            </button>
+          </div>
+        </div>
         <div className="a-fg">
           <label className="a-label">Style Name</label>
           <input
@@ -147,7 +179,7 @@ export default function SalonManager({
           <label className="a-label">Description</label>
           <input
             className={salonFormErrors.desc ? 'a-input invalid' : 'a-input'}
-            placeholder="Short style description"
+            placeholder="Short style description (required for published styles)"
             value={salonForm.desc}
             onChange={onSalonChange('desc')}
             onBlur={onSalonFieldBlur('desc')}
@@ -155,6 +187,16 @@ export default function SalonManager({
           {salonFormErrors.desc ? (
             <span className="a-error">{salonFormErrors.desc}</span>
           ) : null}
+        </div>
+        <div className="a-fg full">
+          <label className="a-label">Internal Note (Admin Only)</label>
+          <textarea
+            className="a-input"
+            placeholder="Private notes, style tips, or supplier details (never shown to customers)"
+            value={salonForm.internalNote || ''}
+            onChange={onSalonChange('internalNote')}
+            rows={2}
+          />
         </div>
         {salonForm.image?.source === 'gallery' && salonForm.image?.assetUrl ? (
           <div className="a-fg full">
@@ -196,18 +238,58 @@ export default function SalonManager({
             </span>
           </div>
         ) : null}
-        <div className="a-fg full">
-          <button className="a-add-btn" type="submit">
-            ＋ Add Hair Style
+        <div className="a-fg full" style={{ display: 'flex', gap: '0.5rem' }}>
+          <button className="a-add-btn" type="submit" style={{ flex: 1 }}>
+            {salonForm.status === 'draft' ? '＋ Save as Draft' : '＋ Add Hair Style'}
           </button>
+          {salonForm.status !== 'draft' ? (
+            <button
+              type="button"
+              className="btn btn-outline"
+              style={{ fontSize: '0.82rem', whiteSpace: 'nowrap' }}
+              onClick={(e) => {
+                onSalonChange('status')({ target: { value: 'draft' } })
+                setTimeout(() => {
+                  const form = e.target.closest('form')
+                  if (form) form.requestSubmit()
+                }, 0)
+              }}
+            >
+              Save as Draft
+            </button>
+          ) : null}
         </div>
       </form>
+
+      <div className="a-filter-tabs">
+        <button
+          type="button"
+          className={`a-filter-tab${statusFilter === 'all' ? ' active' : ''}`}
+          onClick={() => setStatusFilter('all')}
+        >
+          All ({salonStyles.length})
+        </button>
+        <button
+          type="button"
+          className={`a-filter-tab${statusFilter === 'published' ? ' active' : ''}`}
+          onClick={() => setStatusFilter('published')}
+        >
+          Published ({publishedCount})
+        </button>
+        <button
+          type="button"
+          className={`a-filter-tab${statusFilter === 'draft' ? ' active' : ''}`}
+          onClick={() => setStatusFilter('draft')}
+        >
+          Drafts ({draftCount})
+        </button>
+      </div>
 
       <div id="adminSalonList">
         {loadingSalon ? (
           renderSkeletonRows(4, 'salon')
-        ) : salonStyles.length ? (
-          salonStyles.map((item) => (
+        ) : filteredStyles.length ? (
+          filteredStyles.map((item) => (
             <div className="a-item-row" key={item.id}>
               <span className="emoji">
                 {getItemAssetUrl(item) ? (
@@ -226,6 +308,11 @@ export default function SalonManager({
                 )}
               </span>
               <span className="name">{item.name}</span>
+              {item.status === 'draft' ? (
+                <span className="a-draft-badge" title="Draft (not visible to customers)">
+                  Draft
+                </span>
+              ) : null}
               {item.variant ? (
                 <span className="a-variant-badge" title={`Variant: ${item.variant}`}>
                   {item.variant}
@@ -261,7 +348,9 @@ export default function SalonManager({
           ))
         ) : (
           <p style={{ opacity: 0.4, fontSize: '0.8rem' }}>
-            No styles added yet.
+            {statusFilter === 'all'
+              ? 'No styles added yet.'
+              : `No ${statusFilter} styles found.`}
           </p>
         )}
       </div>

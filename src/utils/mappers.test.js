@@ -33,6 +33,20 @@ test('mapSalonStyle maps salon document data safely with defaults', () => {
   assert.equal(mapped.pricingType, 'fixed')
   assert.equal(mapped.duration, '3 hrs')
   assert.equal(mapped.videos.length, 1)
+  assert.equal(mapped.status, 'published')
+  assert.equal(mapped.internalNote, '')
+
+  const draftDoc = {
+    id: 'salon-2',
+    data: () => ({
+      name: 'Draft Locs',
+      status: 'draft',
+      internalNote: 'Needs consultation',
+    }),
+  }
+  const mappedDraft = mapSalonStyle(draftDoc, 1)
+  assert.equal(mappedDraft.status, 'draft')
+  assert.equal(mappedDraft.internalNote, 'Needs consultation')
 })
 
 test('mapBeadProduct maps bead product with range pricing and stock parsing', () => {
@@ -56,6 +70,20 @@ test('mapBeadProduct maps bead product with range pricing and stock parsing', ()
   assert.equal(mapped.pricingType, 'range')
   assert.equal(mapped.stock, 15)
   assert.equal(mapped.assetUrl, 'https://example.com/beads.jpg')
+  assert.equal(mapped.status, 'published')
+  assert.equal(mapped.internalNote, '')
+
+  const draftBead = {
+    id: 'bead-2',
+    data: () => ({
+      name: 'Draft Anklet',
+      status: 'draft',
+      internalNote: 'Waiting for shipment',
+    }),
+  }
+  const mappedDraftBead = mapBeadProduct(draftBead, 0)
+  assert.equal(mappedDraftBead.status, 'draft')
+  assert.equal(mappedDraftBead.internalNote, 'Waiting for shipment')
 })
 
 test('mapBooking and mapOrder format customer fields and line summaries', () => {

@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Images, X } from 'lucide-react'
 import { formatPriceRange } from '../../utils/pricingUtils.js'
 import { buildWatchUrl } from '../../utils/tiktok.js'
 import { getOptimizedCloudinaryUrl } from '../../utils/cloudinaryUrl'
+import { isPubliclyVisible } from '../../utils/catalogVisibility'
 import MediaPlaceholder from '../common/MediaPlaceholder'
 import TikTokPlayer from './TikTokPlayer'
 
@@ -286,12 +287,17 @@ function ProductQuickView({
   const closeBtnRef = useRef(null)
   const sheetRef = useRef(null)
 
+  const isVisible = isPubliclyVisible(item)
   if (item && item !== prevItem) {
     setPrevItem(item)
-    setCachedItem(item)
+    if (isVisible) {
+      setCachedItem(item)
+    } else {
+      setCachedItem(null)
+    }
   }
 
-  const activeItem = item || cachedItem
+  const activeItem = isVisible ? (item || cachedItem) : null
 
   // Focus management: save opener and focus close button on open; restore on close
   useEffect(() => {

@@ -1,5 +1,6 @@
 /* ===== TOKENS ===== */
 :root {
+  color-scheme: light;
   --bg: #f4f7f4;
   --surface: #f9fafb;
   --surface2: #ffffff;
@@ -25,6 +26,7 @@
 }
 
 [data-theme='dark'] {
+  color-scheme: dark;
   --bg: #0f1510;
   --surface: #171e18;
   --surface2: #212923;
@@ -662,6 +664,26 @@ nav {
   overflow-y: auto;
   transform: translateY(30px);
   transition: transform 0.28s;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.sheet::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.sheet::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sheet::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 9999px;
+}
+
+.sheet::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
 }
 
 .quick-view-sheet {
@@ -692,10 +714,13 @@ nav {
 
 .quick-view-video-footer {
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
-  margin-top: -0.25rem;
-  margin-bottom: 0.15rem;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.25rem;
+  text-align: center;
 }
 
 .quick-view-track {
@@ -2651,6 +2676,18 @@ footer .logo {
 .tiktok-facade:hover .tiktok-play-btn,
 .tiktok-facade:focus-visible .tiktok-play-btn {
   transform: scale(1.08);
+}
+
+.tiktok-facade-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
+  max-width: 88%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.25;
 }
 
 .tiktok-facade-label {

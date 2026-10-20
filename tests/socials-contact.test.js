@@ -18,3 +18,4 @@ test('Snapchat contact channel is completely removed from storefront and footer'
   assert.ok(!cssCode.includes('.s-snap'), 'CSS must not define .s-snap class')
   assert.ok(!fs.existsSync(svgPath), 'public/snapchat-svgrepo-com.svg must not exist')
 })
+

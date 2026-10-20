@@ -149,3 +149,49 @@ export function buildWatchUrl({ id, handle, kind = 'video' } = {}) {
   const postKind = kind === 'photo' ? 'photo' : 'video'
   return `https://www.tiktok.com/@${handle}/${postKind}/${id}`
 }
+
+/**
+ * Classifies a TikTok URL into 'video', 'photo', or 'unknown'.
+ *
+ * @param {string} input
+ * @returns {'video' | 'photo' | 'unknown'}
+ */
+export function classifyTikTokUrl(input) {
+  if (typeof input !== 'string' || !input.trim()) {
+    return 'unknown'
+  }
+  try {
+    const url = new URL(input.trim())
+    const host = url.hostname.toLowerCase()
+    if (host !== 'tiktok.com' && !host.endsWith('.tiktok.com')) {
+      return 'unknown'
+    }
+    const pathname = url.pathname
+    if (/\/video\/\d{10,25}/i.test(pathname)) {
+      return 'video'
+    }
+    if (/\/photo\/\d{10,25}/i.test(pathname)) {
+      return 'photo'
+    }
+    return 'unknown'
+  } catch {
+    return 'unknown'
+  }
+}
+
+/**
+ * Builds canonical oEmbed request URL for a TikTok post.
+ *
+ * @param {object|string} videoOrUrl
+ * @returns {string|null}
+ */
+export function buildOEmbedUrl(videoOrUrl) {
+  let watchUrl = null
+  if (typeof videoOrUrl === 'string') {
+    watchUrl = videoOrUrl.trim()
+  } else if (videoOrUrl && typeof videoOrUrl === 'object') {
+    watchUrl = buildWatchUrl(videoOrUrl)
+  }
+  if (!watchUrl) return null
+  return `https://www.tiktok.com/oembed?url=${encodeURIComponent(watchUrl)}`
+}

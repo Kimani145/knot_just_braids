@@ -1,6 +1,7 @@
 import { Ban, Clock3, Images, Package, Video } from 'lucide-react'
 import { formatPriceRange } from '../../utils/pricingUtils.js'
 import { getOptimizedCloudinaryUrl } from '../../utils/cloudinaryUrl'
+import { formatDuration } from '../../utils/duration'
 import MediaPlaceholder from '../common/MediaPlaceholder'
 
 function StyleCard({
@@ -101,10 +102,12 @@ function StyleCard({
           <span className="price">{showPrice}</span>
           <span className="sub-info">
             {isSalon
-              ? <><Clock3 size={14} /> {item.duration}</>
+              ? (formatDuration(item.duration) ? (
+                  <><Clock3 size={14} aria-hidden="true" /> {formatDuration(item.duration)}</>
+                ) : null)
               : isOutOfStock
-                ? <><Ban size={14} /> Out of stock</>
-                : <><Package size={14} /> {item.stock} left</>}
+                ? <><Ban size={14} aria-hidden="true" /> Out of stock</>
+                : <><Package size={14} aria-hidden="true" /> {item.stock} left</>}
           </span>
         </div>
         <button

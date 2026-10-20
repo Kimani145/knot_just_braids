@@ -35,13 +35,15 @@ function FeedToggle({ activeFeed, onChange }) {
 
   return (
     <div className="feed-toggle-wrap">
-      <div className="feed-toggle">
+      <div className="feed-toggle" role="group" aria-label="Catalog feed switch">
         <div className="feed-toggle-slider" ref={sliderRef} />
         <button
           ref={salonRef}
           type="button"
           className={`feed-pill${activeFeed === 'salon' ? ' active' : ''}`}
           onClick={() => onChange('salon')}
+          aria-pressed={activeFeed === 'salon'}
+          aria-label={BRAND.salonName || 'Salon Styles'}
         >
           <Scissors size={14} style={{ verticalAlign: 'middle', marginRight: 6 }} />
           {BRAND.salonName}
@@ -51,6 +53,8 @@ function FeedToggle({ activeFeed, onChange }) {
           type="button"
           className={`feed-pill${activeFeed === 'beads' ? ' active' : ''}`}
           onClick={() => onChange('beads')}
+          aria-pressed={activeFeed === 'beads'}
+          aria-label={BRAND.beadName || 'Bead Products'}
         >
           <Gem size={14} style={{ verticalAlign: 'middle', marginRight: 6 }} />
           {BRAND.beadName}

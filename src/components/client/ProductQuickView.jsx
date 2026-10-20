@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronLeft, ChevronRight, Images, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Clock3, Images, X } from 'lucide-react'
 import { formatPriceRange } from '../../utils/pricingUtils.js'
+import { formatDuration } from '../../utils/duration.js'
 import { buildWatchUrl } from '../../utils/tiktok.js'
 import { getOptimizedCloudinaryUrl } from '../../utils/cloudinaryUrl'
 import MediaPlaceholder from '../common/MediaPlaceholder'
@@ -257,6 +258,12 @@ function ProductQuickViewContent({
         ) : null}
 
         <p className="quick-view-price">{showPrice}</p>
+        {isSalon && formatDuration(item.duration) ? (
+          <p className="quick-view-duration" style={{ fontSize: '0.82rem', color: 'var(--muted)', marginTop: '-0.35rem' }}>
+            <Clock3 size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} aria-hidden="true" />
+            {formatDuration(item.duration)}
+          </p>
+        ) : null}
         <p className="quick-view-desc">{item.desc}</p>
         <button
           className="card-action"

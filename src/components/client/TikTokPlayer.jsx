@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { AlertCircle, Images, Play, RefreshCw, ExternalLink } from 'lucide-react'
 import { buildPlayerSrc, buildWatchUrl } from '../../utils/tiktok'
 import { getPlayerErrorInfo } from '../../utils/tiktokErrors'
-import { fetchTikTokOEmbed, loadTikTokEmbedScript, mountOEmbedHtml } from '../../utils/tiktokOembed'
 import MediaPlaceholder from '../common/MediaPlaceholder'
 
 function TikTokPlayer({
@@ -17,7 +16,6 @@ function TikTokPlayer({
   const [playerStatus, setPlayerStatus] = useState('idle')
   const [errorCode, setErrorCode] = useState(null)
   const iframeRef = useRef(null)
-  const oembedRef = useRef(null)
 
   const [prevSlideState, setPrevSlideState] = useState({
     id: video?.id,
@@ -49,43 +47,6 @@ function TikTokPlayer({
   const itemName = item?.name || 'Product'
   const watchUrl = buildWatchUrl(video) || ''
   const handle = video?.handle || 'knot.justbraids'
-
-  // Photo mode oEmbed resolver
-  useEffect(() => {
-    if (!isPlaying || !isPhotoPost) return
-
-    let isMounted = true
-
-    // 8-second timeout for oEmbed resolution
-    const timeoutId = setTimeout(() => {
-      if (isMounted) {
-        setPlayerStatus('fallback')
-      }
-    }, 8000)
-
-    fetchTikTokOEmbed(watchUrl).then((result) => {
-      if (!isMounted) return
-      clearTimeout(timeoutId)
-
-      if (result.ok && result.html && oembedRef.current) {
-        mountOEmbedHtml(oembedRef.current, result.html)
-        loadTikTokEmbedScript()
-        setPlayerStatus('ready')
-      } else {
-        setPlayerStatus('fallback')
-      }
-    }).catch(() => {
-      if (isMounted) {
-        clearTimeout(timeoutId)
-        setPlayerStatus('fallback')
-      }
-    })
-
-    return () => {
-      isMounted = false
-      clearTimeout(timeoutId)
-    }
-  }, [isPlaying, isPhotoPost, watchUrl])
 
   // Video postMessage listener & 8-second failure timeout
   useEffect(() => {
@@ -164,63 +125,48 @@ function TikTokPlayer({
         {isPlaying ? (
           <>
             {isPhotoPost ? (
-              playerStatus === 'fallback' ? (
-                <div
-                  className="tiktok-fallback-card"
-                  role="region"
-                  aria-label={`TikTok photo gallery by @${handle}`}
-                >
-                  <div className="tiktok-fallback-poster">
-                    {coverImage ? (
-                      <img
-                        src={coverImage}
-                        alt={itemName}
-                        className="tiktok-fallback-img"
-                      />
-                    ) : (
-                      <MediaPlaceholder
-                        item={item}
-                        isSalon={item?.duration !== undefined}
-                        bare
-                      />
-                    )}
-                  </div>
-                  <div className="tiktok-fallback-content">
-                    <span className="tiktok-fallback-handle">
-                      <Images size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-                      @{handle}
-                    </span>
-                    <h3 className="tiktok-fallback-title">{itemName}</h3>
-                    <p className="tiktok-fallback-desc">
-                      Multi-photo hairstyle gallery available on TikTok.
-                    </p>
-                    {watchUrl ? (
-                      <a
-                        href={watchUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="tiktok-fallback-cta"
-                      >
-                        View this hairstyle gallery on TikTok
-                        <ExternalLink size={14} style={{ marginLeft: 6 }} />
-                      </a>
-                    ) : null}
-                  </div>
+              <div
+                className="tiktok-fallback-card"
+                role="region"
+                aria-label={`TikTok photo gallery by @${handle}`}
+              >
+                <div className="tiktok-fallback-poster">
+                  {coverImage ? (
+                    <img
+                      src={coverImage}
+                      alt={itemName}
+                      className="tiktok-fallback-img"
+                    />
+                  ) : (
+                    <MediaPlaceholder
+                      item={item}
+                      isSalon={item?.duration !== undefined}
+                      bare
+                    />
+                  )}
                 </div>
-              ) : (
-                <div
-                  ref={oembedRef}
-                  className={`tiktok-photo-container ${playerStatus === 'ready' ? 'loaded' : 'loading'}`}
-                  aria-label={`TikTok photo carousel for ${itemName}`}
-                >
-                  {playerStatus === 'loading' ? (
-                    <div className="tiktok-loading-spinner" aria-label="Loading TikTok post">
-                      <div className="spinner-ring" />
-                      <span>Loading gallery from TikTok...</span>
-                    </div>
+                <div className="tiktok-fallback-content">
+                  <span className="tiktok-fallback-handle">
+                    <Images size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+                    @{handle}
+                  </span>
+                  <h3 className="tiktok-fallback-title">{itemName}</h3>
+                  <p className="tiktok-fallback-desc">
+                    Multi-photo hairstyle gallery available on TikTok.
+                  </p>
+                  {watchUrl ? (
+                    <a
+                      href={watchUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="tiktok-fallback-cta"
+                    >
+                      View this hairstyle gallery on TikTok
+                      <ExternalLink size={14} style={{ marginLeft: 6 }} />
+                    </a>
                   ) : null}
                 </div>
-              )
+              </div>
             ) : isFailed ? (
               <div className="tiktok-error-state" role="alert">
                 <AlertCircle size={28} className="tiktok-error-icon" />

@@ -121,20 +121,47 @@ export function sanitizeVideos(raw) {
   return sanitized
 }
 
-export function buildPlayerSrc(id) {
+export function buildPlayerSrc(id, { kind = 'video', params = {} } = {}) {
   if (typeof id !== 'string' || !/^\d{10,25}$/.test(id)) {
     return null
   }
 
-  const params = new URLSearchParams({
-    autoplay: '1',
-    controls: '1',
-    description: '0',
-    loop: '0',
-    music_info: '0',
-  })
+  // Build parameters strictly per content type per TikTok documentation
+  let queryParams
+  if (kind === 'photo') {
+    // Documented image-applicable params only
+    queryParams = new URLSearchParams({
+      controls: '1',
+      volume_control: '1',
+      fullscreen_button: '1',
+      music_info: '0',
+      description: '0',
+      native_context_menu: '1',
+      muted: '1',
+      ...params,
+    })
+  } else {
+    // Standard video params
+    queryParams = new URLSearchParams({
+      autoplay: '1',
+      controls: '1',
+      description: '0',
+      loop: '0',
+      music_info: '0',
+      ...params,
+    })
+  }
 
-  return `https://www.tiktok.com/player/v1/${id}?${params.toString()}`
+  return `https://www.tiktok.com/player/v1/${id}?${queryParams.toString()}`
+}
+
+export function buildEmbedV2Src(id, { lang = 'en-US' } = {}) {
+  if (typeof id !== 'string' || !/^\d{10,25}$/.test(id)) {
+    return null
+  }
+
+  const cleanLang = typeof lang === 'string' && /^[A-Za-z-]{2,10}$/.test(lang) ? lang : 'en-US'
+  return `https://www.tiktok.com/embed/v2/${id}?lang=${cleanLang}`
 }
 
 export function buildWatchUrl({ id, handle, kind = 'video' } = {}) {

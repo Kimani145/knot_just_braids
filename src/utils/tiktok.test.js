@@ -6,10 +6,16 @@ import {
   parseTikTokUrl,
   sanitizeVideos,
   buildPlayerSrc,
+  buildEmbedV2Src,
   buildWatchUrl,
   classifyTikTokUrl,
   buildOEmbedUrl,
 } from './tiktok.js'
+import {
+  PHOTO_EMBED_STRATEGY,
+  VALID_STRATEGIES,
+  isPhotoEmbedEnabled,
+} from './tiktokStrategy.js'
 
 test('MAX_VIDEOS_PER_ITEM is 2', () => {
   assert.equal(MAX_VIDEOS_PER_ITEM, 2)
@@ -338,4 +344,43 @@ test('buildOEmbedUrl produces canonical encoded oEmbed endpoint URL', () => {
 
   assert.equal(buildOEmbedUrl(null), null)
   assert.equal(buildOEmbedUrl(''), null)
+})
+
+test('buildPlayerSrc generates parameters per kind', () => {
+  // Video params
+  const videoSrc = buildPlayerSrc('7671327868349123848')
+  assert.ok(videoSrc.includes('autoplay=1'))
+  assert.ok(videoSrc.includes('controls=1'))
+  assert.ok(videoSrc.includes('music_info=0'))
+
+  // Photo params
+  const photoSrc = buildPlayerSrc('7681345289243905298', { kind: 'photo' })
+  assert.ok(photoSrc.includes('volume_control=1'))
+  assert.ok(photoSrc.includes('fullscreen_button=1'))
+  assert.ok(photoSrc.includes('native_context_menu=1'))
+  assert.ok(photoSrc.includes('muted=1'))
+  assert.ok(!photoSrc.includes('autoplay=1'))
+})
+
+test('buildEmbedV2Src strictly validates ID and builds canonical embed v2 URL', () => {
+  const valid = buildEmbedV2Src('7681345289243905298')
+  assert.equal(valid, 'https://www.tiktok.com/embed/v2/7681345289243905298?lang=en-US')
+
+  const customLang = buildEmbedV2Src('7681345289243905298', { lang: 'fr' })
+  assert.equal(customLang, 'https://www.tiktok.com/embed/v2/7681345289243905298?lang=fr')
+
+  // Invalid IDs
+  assert.equal(buildEmbedV2Src('not-an-id'), null)
+  assert.equal(buildEmbedV2Src('../traversal/12345'), null)
+  assert.equal(buildEmbedV2Src(12345678901), null)
+  assert.equal(buildEmbedV2Src(''), null)
+  assert.equal(buildEmbedV2Src(null), null)
+})
+
+test('PHOTO_EMBED_STRATEGY defaults to safe link-only', () => {
+  assert.ok(VALID_STRATEGIES.includes('link-only'))
+  assert.ok(VALID_STRATEGIES.includes('embed-v2'))
+  assert.ok(VALID_STRATEGIES.includes('player-v1'))
+  assert.equal(PHOTO_EMBED_STRATEGY, 'link-only')
+  assert.equal(isPhotoEmbedEnabled(), false)
 })

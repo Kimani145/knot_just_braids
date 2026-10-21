@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { AlertTriangle, EyeOff, X } from 'lucide-react'
 
-export default function CatalogLintBanner({ warnings = [], onBulkUnpublish }) {
+export default function CatalogLintBanner({ warnings = [], onBulkUnpublish, onEditItem }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -73,11 +73,21 @@ export default function CatalogLintBanner({ warnings = [], onBulkUnpublish }) {
         {isExpanded ? (
           <ul className="catalog-lint-list">
             {warnings.map((warn) => (
-              <li key={warn.id} className="catalog-lint-item">
+              <li key={warn.id} className="catalog-lint-item" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <span className={`catalog-lint-tag tag-${warn.catalogType}`}>
                   {warn.catalogType === 'salon' ? 'SALON' : 'BEADS'}
                 </span>
-                <span className="catalog-lint-msg">{warn.message}</span>
+                <span className="catalog-lint-msg" style={{ flex: 1 }}>{warn.message}</span>
+                {warn.type === 'photo-post-without-images' && onEditItem ? (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline"
+                    style={{ padding: '2px 8px', fontSize: '0.75rem', whiteSpace: 'nowrap' }}
+                    onClick={() => onEditItem(warn.itemId, warn.catalogType)}
+                  >
+                    Add photos
+                  </button>
+                ) : null}
               </li>
             ))}
           </ul>

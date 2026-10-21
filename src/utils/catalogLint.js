@@ -118,7 +118,7 @@ export function lintCatalog(items = [], catalogType = 'beads', options = {}) {
     // Check individual item: 4. missing-cover
     const hasImage = Boolean(
       itemA.assetUrl ||
-      (Array.isArray(itemA.images) && itemA.images.length > 0 && itemA.images[0])
+      (Array.isArray(itemA.images) && itemA.images.length > 0 && itemA.images.some(Boolean))
     )
     if (!hasImage) {
       warnings.push({
@@ -128,6 +128,26 @@ export function lintCatalog(items = [], catalogType = 'beads', options = {}) {
         itemName: nameA || 'Untitled item',
         catalogType,
         message: `"${nameA || 'Untitled item'}" has no cover image. Add a photo to improve customer engagement.`,
+        severity: 'warning',
+      })
+    }
+
+    // Check individual item: 6. photo-post-without-images
+    const isPublished = (itemA.status || 'published') === 'published'
+    const videosA = Array.isArray(itemA.videos) ? itemA.videos : []
+    const hasOnlyPhotoPosts =
+      videosA.length > 0 &&
+      videosA.every((v) => v?.kind === 'photo')
+
+    if (isPublished && !hasImage && hasOnlyPhotoPosts) {
+      warnings.push({
+        id: `photo-post-without-images-${itemA.id || i}`,
+        type: 'photo-post-without-images',
+        itemId: itemA.id || String(i),
+        itemName: nameA || 'Untitled item',
+        catalogType,
+        status: 'published',
+        message: `"${nameA || 'Untitled item'}" only has TikTok photo posts and has no uploaded photos. Upload photos so customers can swipe through them.`,
         severity: 'warning',
       })
     }

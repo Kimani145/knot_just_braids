@@ -6,6 +6,7 @@ import {
   buildWatchUrl,
   parseTikTokUrl,
 } from '../../utils/tiktok'
+import { isPhotoEmbedEnabled } from '../../utils/tiktokStrategy'
 
 function VideoLinksField({
   videos = [],
@@ -170,9 +171,47 @@ function VideoLinksField({
           ) : null}
 
           {validation?.parsed?.kind === 'photo' ? (
-            <p className="a-help-text a-photo-hint">
-              Photo-mode post: TikTok's embed player may restrict playback; customers will see cover + 'View photos on TikTok' if embedding is refused.
-            </p>
+            !isPhotoEmbedEnabled() ? (
+              <div
+                className="a-photo-hint-box"
+                style={{
+                  marginTop: '0.4rem',
+                  padding: '0.5rem 0.75rem',
+                  background: 'var(--surface2)',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--border)',
+                }}
+              >
+                <p
+                  className="a-help-text a-photo-hint"
+                  style={{ margin: '0 0 0.4rem 0', color: 'var(--text)' }}
+                >
+                  📸 TikTok can&apos;t play photo posts inside the page. Upload the photos here so customers can swipe them.
+                </p>
+                <button
+                  type="button"
+                  className="a-btn a-btn-sm"
+                  style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
+                  onClick={() => {
+                    const uploader = document.querySelector(
+                      '.image-uploader-dropzone, .image-uploader-container, input[type="file"]'
+                    )
+                    if (uploader) {
+                      uploader.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                      if (typeof uploader.focus === 'function') {
+                        uploader.focus()
+                      }
+                    }
+                  }}
+                >
+                  Upload photos
+                </button>
+              </div>
+            ) : (
+              <p className="a-help-text a-photo-hint">
+                📸 Photo-mode post by @{validation.parsed.handle} (ID: ...{String(validation.parsed.id || '').slice(-4)}).
+              </p>
+            )
           ) : null}
 
           <p className="a-help-text">

@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Clock3, Images, X } from 'lucide-react'
 import { formatPriceRange } from '../../utils/pricingUtils.js'
 import { formatDuration } from '../../utils/duration.js'
 import { buildWatchUrl } from '../../utils/tiktok.js'
+import { isPhotoEmbedEnabled } from '../../utils/tiktokStrategy.js'
 import { getOptimizedCloudinaryUrl } from '../../utils/cloudinaryUrl'
 import { isPubliclyVisible } from '../../utils/catalogVisibility'
 import MediaPlaceholder from '../common/MediaPlaceholder'
@@ -31,13 +32,23 @@ function ProductQuickViewContent({
     return Array.isArray(item?.videos) ? item.videos : []
   }, [item])
 
+  const photoPosts = useMemo(() => {
+    return videos.filter((v) => v?.kind === 'photo')
+  }, [videos])
+
   const slides = useMemo(() => {
     const imageSlides = images.map((image, index) => ({
       type: 'image',
       src: image,
       id: `img-${image}-${index}`,
     }))
-    const videoSlides = videos.map((video, index) => ({
+
+    // Under link-only strategy (default), photo posts are NOT slides
+    const embeddableVideos = isPhotoEmbedEnabled()
+      ? videos
+      : videos.filter((v) => v?.kind !== 'photo')
+
+    const videoSlides = embeddableVideos.map((video, index) => ({
       type: 'video',
       video,
       id: `vid-${video.id || index}`,
@@ -231,6 +242,19 @@ function ProductQuickViewContent({
                 </>
               ) : null}
             </>
+          ) : photoPosts.length > 0 ? (
+            <div className="quick-view-photo-empty-state">
+              <MediaPlaceholder item={item} isSalon={isSalon} bare />
+              <div className="quick-view-photo-empty-overlay">
+                <span className="quick-view-photo-empty-badge">
+                  <Images size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} aria-hidden="true" />
+                  Photos on TikTok
+                </span>
+                <p className="quick-view-photo-empty-hint">
+                  Multi-photo hairstyle gallery by @{photoPosts[0].handle || 'knot.justbraids'}
+                </p>
+              </div>
+            </div>
           ) : (
             <MediaPlaceholder item={item} isSalon={isSalon} />
           )}
@@ -254,6 +278,20 @@ function ProductQuickViewContent({
               {activeSlide.video.kind === 'photo'
                 ? 'View Photos on TikTok ↗'
                 : 'Watch on TikTok ↗'}
+            </a>
+          </div>
+        ) : null}
+
+        {/* Photo link row outside the carousel for link-only strategy */}
+        {photoPosts.length > 0 && !isPhotoEmbedEnabled() ? (
+          <div className="quick-view-photo-link-row">
+            <a
+              href={buildWatchUrl(photoPosts[0])}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="tiktok-photo-watch-link"
+            >
+              See the original photo post on TikTok ↗
             </a>
           </div>
         ) : null}

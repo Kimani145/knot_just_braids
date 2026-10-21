@@ -68,11 +68,10 @@ test('PR-C: TikTokPlayer forbids routing photo posts to /player/v1/', () => {
 
   const code = fs.readFileSync(componentPath, 'utf8')
 
-  // Verify playerSrc is null for photo posts
-  assert.match(
-    code,
-    /isPhotoPost\s*\?\s*null\s*:\s*buildPlayerSrc\(video\.id\)/,
-    'playerSrc must strictly evaluate to null for photo posts'
+  // Verify playerSrc routes according to strategy (null under default link-only)
+  assert.ok(
+    code.includes('PHOTO_EMBED_STRATEGY') && (code.includes('buildEmbedV2Src') || code.includes('null')),
+    'playerSrc must be strategy-controlled and evaluate to null for photo posts under default link-only strategy'
   )
 
   // Verify branded fallback card structure

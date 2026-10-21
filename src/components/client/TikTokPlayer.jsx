@@ -1,8 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
 import { AlertCircle, Images, Play, RefreshCw, ExternalLink } from 'lucide-react'
-import { buildPlayerSrc, buildWatchUrl } from '../../utils/tiktok'
+import { buildPlayerSrc, buildEmbedV2Src, buildWatchUrl } from '../../utils/tiktok'
+import { PHOTO_EMBED_STRATEGY } from '../../utils/tiktokStrategy'
 import { getPlayerErrorInfo } from '../../utils/tiktokErrors'
 import MediaPlaceholder from '../common/MediaPlaceholder'
+
+let preconnected = false
+function preconnectTikTok() {
+  if (preconnected || typeof document === 'undefined') return
+  try {
+    const link = document.createElement('link')
+    link.rel = 'preconnect'
+    link.href = 'https://www.tiktok.com'
+    document.head.appendChild(link)
+    preconnected = true
+  } catch {
+    // Ignore in non-browser context
+  }
+}
 
 function TikTokPlayer({
   video,
@@ -90,8 +105,14 @@ function TikTokPlayer({
     return null
   }
 
-  // Strictly forbid /player/v1/ for photo posts
-  const playerSrc = isPhotoPost ? null : buildPlayerSrc(video.id)
+  // Build player source based on active strategy
+  const playerSrc = isPhotoPost
+    ? PHOTO_EMBED_STRATEGY === 'embed-v2'
+      ? buildEmbedV2Src(video.id)
+      : PHOTO_EMBED_STRATEGY === 'player-v1'
+        ? buildPlayerSrc(video.id, { kind: 'photo' })
+        : null
+    : buildPlayerSrc(video.id, { kind: 'video' })
 
   const handleStartPlay = () => {
     setHasUserTappedPlay(true)
@@ -213,6 +234,8 @@ function TikTokPlayer({
               type="button"
               className="tiktok-facade"
               onClick={handleStartPlay}
+              onPointerDown={preconnectTikTok}
+              onMouseEnter={preconnectTikTok}
               aria-label={`Play TikTok ${isPhotoPost ? 'photo gallery' : 'video'}: ${itemName}`}
             >
               {coverImage ? (

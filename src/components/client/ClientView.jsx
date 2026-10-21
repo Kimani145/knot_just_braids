@@ -49,7 +49,7 @@ function ClientView({
           target="_blank"
           rel="noopener noreferrer"
         >
-          <img src="/tiktok-svgrepo-com (2).svg" alt="TikTok" width="24" height="24" />
+          <img src="/tiktok-icon.svg" alt="TikTok" width="24" height="24" />
         </a>
         <a
           className="s-icon s-wa"

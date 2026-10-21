@@ -23,7 +23,7 @@ function Footer({ onNavigate }) {
           <img src="/whatsapp-svgrepo-com.svg" alt="WhatsApp" width="24" height="24" />
         </a>
         <a href="https://www.tiktok.com/@knot.justbraids" target="_blank" rel="noopener noreferrer">
-          <img src="/tiktok-svgrepo-com (2).svg" alt="TikTok" width="24" height="24" />
+          <img src="/tiktok-icon.svg" alt="TikTok" width="24" height="24" />
         </a>
       </div>
       <div className="footer-links">

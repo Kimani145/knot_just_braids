@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AlertCircle, Images, Play, RefreshCw, ExternalLink } from 'lucide-react'
 import { buildPlayerSrc, buildEmbedV2Src, buildWatchUrl } from '../../utils/tiktok'
 import { PHOTO_EMBED_STRATEGY } from '../../utils/tiktokStrategy'
-import { getPlayerErrorInfo } from '../../utils/tiktokErrors'
+import { getPlayerErrorInfo, isRetryableError } from '../../utils/tiktokErrors'
 import MediaPlaceholder from '../common/MediaPlaceholder'
 
 let preconnected = false
@@ -135,7 +135,9 @@ function TikTokPlayer({
       : getPlayerErrorInfo(errorCode)
     : null
 
-  const isPermanentError = errorInfo?.key === 'invalid-or-unsupported-media'
+  const isPermanentError =
+    errorInfo?.key === 'invalid-or-unsupported-media' ||
+    !isRetryableError(errorCode)
 
   return (
     <div

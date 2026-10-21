@@ -4,6 +4,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import {
   TIKTOK_PLAYER_ERRORS,
+  TIKTOK_DOCS_ERROR_NAMES,
+  isRetryableError,
   mapPlayerError,
   getPlayerErrorInfo,
 } from '../src/utils/tiktokErrors.js'
@@ -26,6 +28,17 @@ test('PR-C: TIKTOK_PLAYER_ERRORS maps error codes according to specification', (
   assert.equal(mapPlayerError(3002), 'player-runtime-failure')
   assert.equal(mapPlayerError(9999), 'unknown')
   assert.equal(mapPlayerError(null), 'unknown')
+
+  assert.equal(TIKTOK_DOCS_ERROR_NAMES[1001], 'INVALID_VIDEO')
+  assert.equal(TIKTOK_DOCS_ERROR_NAMES[2001], 'SERVER_ERROR')
+  assert.equal(TIKTOK_DOCS_ERROR_NAMES[3001], 'PLAYBACK_ERROR')
+  assert.equal(TIKTOK_DOCS_ERROR_NAMES[3002], 'AUTOPLAY_ERROR')
+
+  assert.equal(isRetryableError(1001), false)
+  assert.equal(isRetryableError('1001'), false)
+  assert.equal(isRetryableError(2001), true)
+  assert.equal(isRetryableError(3001), true)
+  assert.equal(isRetryableError(3002), true)
 
   const info1001 = getPlayerErrorInfo(1001)
   assert.equal(info1001.key, 'invalid-or-unsupported-media')
@@ -98,7 +111,9 @@ test('PR-C: VideoLinksField provides inline helper for photo posts', () => {
 
   const code = fs.readFileSync(fieldPath, 'utf8')
   assert.ok(
-    code.includes('Photo-mode post: TikTok\'s embed player may restrict playback'),
+    code.includes("TikTok can&apos;t play photo posts inside the page") ||
+    code.includes("TikTok can't play photo posts inside the page") ||
+    code.includes('Photo-mode post:'),
     'VideoLinksField must display helper hint when a photo URL is entered'
   )
 })

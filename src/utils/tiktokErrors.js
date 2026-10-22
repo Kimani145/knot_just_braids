@@ -10,6 +10,20 @@ export const TIKTOK_PLAYER_ERRORS = {
   3002: 'player-runtime-failure',
 }
 
+export const TIKTOK_DOCS_ERROR_NAMES = {
+  1001: 'INVALID_VIDEO',
+  2001: 'SERVER_ERROR',
+  3001: 'PLAYBACK_ERROR',
+  3002: 'AUTOPLAY_ERROR',
+}
+
+export function isRetryableError(code) {
+  const numeric = Number(code)
+  // 1001 INVALID_VIDEO is permanent; never show retry
+  if (numeric === 1001) return false
+  return true
+}
+
 export const TIKTOK_PLAYER_MESSAGES = {
   'invalid-or-unsupported-media': {
     title: 'Content unavailable for direct playback',

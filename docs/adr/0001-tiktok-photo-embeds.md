@@ -1,49 +1,69 @@
-# ADR 0001: TikTok Photo Post Embedding & Degraded State Architecture
+# ADR 0001: TikTok Photo Post Strategy & Secure Storefront Integration (PR-G)
 
-## Status
-Accepted
-
-## Context
-TikTok supports both standard video posts (`/@handle/video/{id}`) and photo carousels / slideshows (`/@handle/photo/{id}`).
-Previously, the Knot Just storefront routed all TikTok IDs blindly to TikTok's official web player iframe endpoint:
-`https://www.tiktok.com/player/v1/{id}`
-
-However, TikTok's `/player/v1/` endpoint is designed strictly for short-form video streaming. When passed a multi-image carousel post, it returns player error `1001` (`INVALID_VIDEO`: "Invalid Media ID, no video/photo found") or times out.
-The client previously discarded this error code, assumed slow connectivity, and showed a broken error card with duplicate external links.
-
-## Decision
-1. **Three-Way URL Classification:**
-   - `/video/<numeric-id>` -> `"video"` -> `/player/v1/{id}` iframe.
-   - `/photo/<numeric-id>` -> `"photo"` -> TikTok oEmbed (`/api/tiktok-oembed?url=...`) with branded fallback card. **Strictly forbidden: routing photos to `/player/v1/`.**
-   - Unknown / shortened -> `"unknown"` -> Attempt oEmbed; on failure, render branded fallback card. **Never route unknown to `/player/v1/`.**
-2. **Error Code Mapping:**
-   - Map numeric postMessage codes (`1001`, `2001`, `3001`, `3002`) into normalized keys with calm, clear customer copy.
-   - For permanent errors like `1001` (`invalid-or-unsupported-media`), suppress repeated retry loops.
-3. **Graceful Fallback:**
-   - Where oEmbed is blocked, unavailable, or times out (e.g. offline/sandboxed/restricted), render a serene branded fallback card with cover image, handle badge, item title, and an unclipped call-to-action: "View this hairstyle gallery on TikTok ↗".
-4. **Zero Script Pollution / Privacy:**
-   - Do not load `embed.js` until the user actively engages with an embed.
-   - Ensure `embed.js` is loaded idempotently at most once per page.
-   - Strictly reject any third-party tracking scrapers or unofficial reverse-engineered APIs.
-
-## Consequences
-- Photo posts never trigger the broken `1001` player state.
-- Customers have a guaranteed, accessible path to view multi-photo galleries on TikTok.
-- Store admins receive immediate inline validation feedback when adding photo-mode URLs.
+**Status:** Accepted  
+**Date:** 2026-10-22  
+**Re-test Date:** 2026-11-20  
 
 ---
 
-## Photo oEmbed fallback regression: CORS and embed initialization
+## 1. Context & Technical Clarifications
 
-### Context & Diagnosis
-Direct client-side invocation of `https://www.tiktok.com/oembed` was subject to browser cross-origin policy restrictions. Furthermore, direct inspection via curl demonstrated that TikTok's public oEmbed service currently returns `HTTP 400 {"message":"Something went wrong","code":400}` for `/photo/` posts, while serving `HTTP 200` with embed HTML for `/video/` posts.
+### Correction of Previous False Hypotheses
+Earlier internal research erroneously asserted that TikTok's `/player/v1/{id}` endpoint was "designed strictly for video" and would inevitably fail in-browser with error `1001`.
 
-### Resolution
-1. **Serverless Proxy (`api/tiktok-oembed.js`):**
-   Proxy all oEmbed requests through a lightweight Vercel serverless function (`GET /api/tiktok-oembed?url=...`). The function strictly validates and canonicalizes the TikTok URL, enforces an 8-second timeout, caches responses in memory, and strips unnecessary fields to return a clean `{ ok: boolean, html?: string, author_name?: string, title?: string }` shape.
-2. **Browser Execution:**
-   The browser calls `/api/tiktok-oembed` instead of TikTok directly, completely eliminating CORS failures.
-3. **Embed.js Dynamic Re-initialization:**
-   When oEmbed HTML is mounted, `loadTikTokEmbedScript()` ensures TikTok's `embed.js` is executed to transform the `.tiktok-embed` blockquote into an interactive card, handling multiple embeds on the same page.
-4. **Fallback Guard:**
-   When TikTok upstream returns HTTP 400 or missing HTML for photo posts, the component falls back to the branded gallery card, guaranteeing zero layout crashes or unhandled rejections.
+Empirical browser lab testing on 2026-10-22 (`docs/research/lab-logs/browser-2026-10-22.json`) proved that:
+1. **Photo Carousel Playback Confirmed:** Variant V1 (TikTok's official oEmbed iframe configuration without the sandbox attribute) successfully hydrated the photo carousel, emitting `onPlayerReady`, `onStateChange`, `onCurrentTime`, and `onImageChange`. The owner visually confirmed playback (`seen: true`).
+2. **Root Cause of Previous Failures (The Shared-Iframe Sandbox Flaw):** Previous implementations in `TikTokPlayer.jsx` applied a 5-flag `sandbox` attribute (`allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox`). In-browser testing showed that TikTok's player script fails hydration when sandboxed, throwing `onPlayerError 3002 (AUTOPLAY_ERROR)` (Variants V3/V4) or timing out (Variant V2).
+3. **Official Markup Contains No Sandbox:** TikTok's canonical oEmbed response for rewritten video/photo URLs deliberately omits the `sandbox` attribute, relying on standard cross-origin process isolation, `referrerPolicy="strict-origin-when-cross-origin"`, and explicit feature policy permissions (`allow="..."`).
+
+---
+
+## 2. Decision
+
+### Primary Strategy: `PHOTO_EMBED_STRATEGY = 'official-player'` (V1 Winner)
+
+1. **Adoption of Winning Profile (`official-player`):**
+   - Photo posts and video posts use the verified official oEmbed iframe structure:
+     `https://www.tiktok.com/player/v1/{id}?embed_from=oembed&music_info=1&description=1&autoplay=1&muted=1`
+   - Explicit feature policy:
+     `allow="accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; gyroscope; picture-in-picture; web-share"`
+   - Referrer policy: `referrerPolicy="strict-origin-when-cross-origin"`
+   - `sandbox`: `null` (omitted from DOM element)
+
+2. **Justification for Omitting the `sandbox` Attribute in Variant V1:**
+   - **Process & Origin Boundary Isolation:** Cross-origin `<iframe>`s from `https://www.tiktok.com` run in a completely isolated process and origin sandbox enforced by the browser. TikTok code inside the iframe cannot access the host page DOM, `localStorage`, `sessionStorage`, or cookies under any circumstances.
+   - **Upstream Compatibility:** TikTok's official oEmbed markup itself omits the `sandbox` attribute. Restricting the iframe with a sandbox attribute breaks TikTok's internal postMessage messaging and media element hydration, resulting in `3002 AUTOPLAY_ERROR` or infinite loading states.
+   - **Strict Host Application Isolation:** The host page never loads third-party scripts (`embed.js` is banned) and never parses remote HTML (`innerHTML`, `createContextualFragment`, `dangerouslySetInnerHTML` are banned).
+
+3. **Runtime Ladder & Session Failure Cache:**
+   - Facade button renders first; zero network requests to TikTok occur before the user taps.
+   - Preconnect occurs only on `onPointerDown` / `onMouseEnter`.
+   - On tap: if the post ID was previously marked as failed in this session, immediately render the in-slide fallback card without waiting.
+   - Otherwise, render the iframe and start an 8-second timer.
+   - If `onPlayerReady` arrives: show the player.
+   - If `onPlayerError` or 8s timeout occurs: mark post failed in `sessionStorage` and show in-slide fallback card with the item's own photos (or bare placeholder) and ONE "View on TikTok ↗" link (`rel="noopener noreferrer"`).
+   - Clean unmounting: when the modal closes or active slide changes, the iframe is unmounted, immediately stopping audio and clearing all timers.
+
+4. **Security & Validation Non-Negotiables:**
+   - Strict ID validation: `^\d{10,25}$`. Never call `Number(id)`.
+   - Strict postMessage checks:
+     `event.origin === 'https://www.tiktok.com'` AND `event.source === iframeRef.current.contentWindow` AND validate `event.data['x-tiktok-player'] === true`.
+   - All external links use `rel="noopener noreferrer"`.
+   - Static guard test (`tests/security-static-guard.test.js`) remains 100% green.
+
+5. **Kill Switch:**
+   - Environment variable `VITE_TIKTOK_PHOTO_STRATEGY` allows instant fallback to `link-only`, `official-player-sandboxed`, `minimal-player`, or `embed-v2` without code modification.
+
+---
+
+## 3. Consequences
+
+### Positive
+- **Working Photo UX:** TikTok photo posts now play directly inside the storefront with swipeable carousels.
+- **Fail-Safe Reliability:** If TikTok blocks embedding for a specific post, the application falls back gracefully to customer photos and a direct link.
+- **Zero Host Origin Vulnerability:** Third-party scripts are completely excluded from the host origin.
+
+### Verification Matrix
+- All 169 unit tests passing (`npm run test:unit`).
+- ESLint clean with 0 errors across `src/`.
+- Production bundle size remains optimal (~127 kB main bundle).

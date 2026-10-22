@@ -124,6 +124,41 @@ describe('catalogLint utility', () => {
     assert.match(placeholders[0].message, /placeholder text/)
   })
 
+  it('detects photo-post-without-images for published items lacking photos', () => {
+    const items = [
+      {
+        id: 's1',
+        name: 'Sisterlocs N-R',
+        status: 'published',
+        assetUrl: '',
+        images: [],
+        videos: [{ provider: 'tiktok', id: '7615692003048721671', kind: 'photo' }],
+      },
+      {
+        id: 's2',
+        name: 'Loose Braids',
+        status: 'published',
+        assetUrl: '',
+        images: [],
+        videos: [{ provider: 'tiktok', id: '7581592400238300428', kind: 'video' }],
+      },
+      {
+        id: 's3',
+        name: 'Beaded Style',
+        status: 'published',
+        assetUrl: 'https://img/3.jpg',
+        images: ['https://img/3.jpg'],
+        videos: [{ provider: 'tiktok', id: '7615692003048721671', kind: 'photo' }],
+      },
+    ]
+
+    const warnings = lintCatalog(items, 'salon')
+    const photoWarnings = warnings.filter((w) => w.type === 'photo-post-without-images')
+    assert.equal(photoWarnings.length, 1)
+    assert.equal(photoWarnings[0].itemId, 's1')
+    assert.match(photoWarnings[0].message, /only has TikTok photo posts and has no uploaded photos/)
+  })
+
   it('lintAllCatalogs aggregates warnings from both catalogs', () => {
     const salon = [
       { id: 's1', name: 'Style 1', assetUrl: '' },

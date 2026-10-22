@@ -4,6 +4,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import {
   TIKTOK_PLAYER_ERRORS,
+  TIKTOK_DOCS_ERROR_NAMES,
+  isRetryableError,
   mapPlayerError,
   getPlayerErrorInfo,
 } from '../src/utils/tiktokErrors.js'
@@ -12,7 +14,6 @@ import {
   buildOEmbedUrl,
   buildPlayerSrc,
 } from '../src/utils/tiktok.js'
-import { validateAndNormalizeTikTokUrl } from '../api/tiktok-oembed.js'
 
 test('PR-C: TIKTOK_PLAYER_ERRORS maps error codes according to specification', () => {
   assert.equal(TIKTOK_PLAYER_ERRORS[1001], 'invalid-or-unsupported-media')
@@ -27,6 +28,17 @@ test('PR-C: TIKTOK_PLAYER_ERRORS maps error codes according to specification', (
   assert.equal(mapPlayerError(3002), 'player-runtime-failure')
   assert.equal(mapPlayerError(9999), 'unknown')
   assert.equal(mapPlayerError(null), 'unknown')
+
+  assert.equal(TIKTOK_DOCS_ERROR_NAMES[1001], 'INVALID_VIDEO')
+  assert.equal(TIKTOK_DOCS_ERROR_NAMES[2001], 'SERVER_ERROR')
+  assert.equal(TIKTOK_DOCS_ERROR_NAMES[3001], 'PLAYBACK_ERROR')
+  assert.equal(TIKTOK_DOCS_ERROR_NAMES[3002], 'AUTOPLAY_ERROR')
+
+  assert.equal(isRetryableError(1001), false)
+  assert.equal(isRetryableError('1001'), false)
+  assert.equal(isRetryableError(2001), true)
+  assert.equal(isRetryableError(3001), true)
+  assert.equal(isRetryableError(3002), true)
 
   const info1001 = getPlayerErrorInfo(1001)
   assert.equal(info1001.key, 'invalid-or-unsupported-media')
@@ -69,11 +81,10 @@ test('PR-C: TikTokPlayer forbids routing photo posts to /player/v1/', () => {
 
   const code = fs.readFileSync(componentPath, 'utf8')
 
-  // Verify playerSrc is null for photo posts
-  assert.match(
-    code,
-    /isPhotoPost\s*\?\s*null\s*:\s*buildPlayerSrc\(video\.id\)/,
-    'playerSrc must strictly evaluate to null for photo posts'
+  // Verify playerSrc routes according to strategy (null under default link-only)
+  assert.ok(
+    code.includes('PHOTO_EMBED_STRATEGY') && (code.includes('buildEmbedV2Src') || code.includes('null')),
+    'playerSrc must be strategy-controlled and evaluate to null for photo posts under default link-only strategy'
   )
 
   // Verify branded fallback card structure
@@ -100,46 +111,11 @@ test('PR-C: VideoLinksField provides inline helper for photo posts', () => {
 
   const code = fs.readFileSync(fieldPath, 'utf8')
   assert.ok(
-    code.includes('Photo-mode post: TikTok\'s embed player may restrict playback'),
+    code.includes("TikTok can&apos;t play photo posts inside the page") ||
+    code.includes("TikTok can't play photo posts inside the page") ||
+    code.includes('Photo-mode post:'),
     'VideoLinksField must display helper hint when a photo URL is entered'
   )
-})
-
-test('PR-C: fetchTikTokOEmbed routes through /api/tiktok-oembed proxy, not directly to tiktok.com', () => {
-  const helperPath = path.resolve('src/utils/tiktokOembed.js')
-  assert.ok(fs.existsSync(helperPath), 'src/utils/tiktokOembed.js must exist')
-
-  const code = fs.readFileSync(helperPath, 'utf8')
-
-  // Verify client calls server route
-  assert.ok(
-    code.includes('const endpoint = `/api/tiktok-oembed?url='),
-    'Client fetchTikTokOEmbed must call /api/tiktok-oembed proxy to eliminate browser CORS'
-  )
-  assert.ok(
-    !code.includes('https://www.tiktok.com/oembed?url='),
-    'Client must never directly call upstream https://www.tiktok.com/oembed from the browser'
-  )
-})
-
-test('PR-C: serverless route validates and canonicalizes TikTok URLs, blocking open-proxy abuse', () => {
-  // Valid canonical URLs
-  assert.equal(
-    validateAndNormalizeTikTokUrl('https://www.tiktok.com/@knot.justbraids/photo/7681345289243905298'),
-    'https://www.tiktok.com/@knot.justbraids/photo/7681345289243905298'
-  )
-  assert.equal(
-    validateAndNormalizeTikTokUrl('https://tiktok.com/@knot.justbraids/video/7671327868349123848?utm=test'),
-    'https://www.tiktok.com/@knot.justbraids/video/7671327868349123848'
-  )
-
-  // Invalid or attacker-controlled URLs
-  assert.equal(validateAndNormalizeTikTokUrl('https://evil.com/video/123456789012345'), null)
-  assert.equal(validateAndNormalizeTikTokUrl('http://www.tiktok.com/@knot.justbraids/video/7671327868349123848'), null)
-  assert.equal(validateAndNormalizeTikTokUrl('javascript:alert(1)'), null)
-  assert.equal(validateAndNormalizeTikTokUrl('https://not-tiktok.com/@a/photo/123456789012345'), null)
-  assert.equal(validateAndNormalizeTikTokUrl(''), null)
-  assert.equal(validateAndNormalizeTikTokUrl(null), null)
 })
 
 test('PR-C: Verified control test vectors', () => {

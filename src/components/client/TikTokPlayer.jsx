@@ -1,9 +1,29 @@
 import { useEffect, useRef, useState } from 'react'
 import { AlertCircle, Images, Play, RefreshCw, ExternalLink } from 'lucide-react'
-import { buildPlayerSrc, buildWatchUrl } from '../../utils/tiktok'
-import { getPlayerErrorInfo } from '../../utils/tiktokErrors'
-import { fetchTikTokOEmbed, loadTikTokEmbedScript, mountOEmbedHtml } from '../../utils/tiktokOembed'
+import { buildWatchUrl } from '../../utils/tiktok'
+import { PHOTO_EMBED_STRATEGY } from '../../utils/tiktokStrategy'
+import {
+  getIframeConfig,
+  markPostFailed,
+  isPostFailed,
+  clearPostFailure,
+} from '../../utils/tiktokProfiles'
+import { getPlayerErrorInfo, isRetryableError } from '../../utils/tiktokErrors'
 import MediaPlaceholder from '../common/MediaPlaceholder'
+
+let preconnected = false
+function preconnectTikTok() {
+  if (preconnected || typeof document === 'undefined') return
+  try {
+    const link = document.createElement('link')
+    link.rel = 'preconnect'
+    link.href = 'https://www.tiktok.com'
+    document.head.appendChild(link)
+    preconnected = true
+  } catch {
+    // Ignore in non-browser context
+  }
+}
 
 function TikTokPlayer({
   video,
@@ -17,7 +37,6 @@ function TikTokPlayer({
   const [playerStatus, setPlayerStatus] = useState('idle')
   const [errorCode, setErrorCode] = useState(null)
   const iframeRef = useRef(null)
-  const oembedRef = useRef(null)
 
   const [prevSlideState, setPrevSlideState] = useState({
     id: video?.id,
@@ -45,55 +64,32 @@ function TikTokPlayer({
 
   const isPlaying = Boolean(hasUserTappedPlay && isOpen && isActiveSlide)
   const isPhotoPost = video?.kind === 'photo'
-  const isVideoPost = video?.kind === 'video' || (!video?.kind && Boolean(video?.id))
   const itemName = item?.name || 'Product'
   const watchUrl = buildWatchUrl(video) || ''
   const handle = video?.handle || 'knot.justbraids'
 
-  // Photo mode oEmbed resolver
+  // Determine active profile for this media kind
+  const activeProfile = isPhotoPost ? PHOTO_EMBED_STRATEGY : 'official-player'
+  const iframeConfig = getIframeConfig(video, activeProfile)
+
+  // Video/Photo postMessage listener & failure timeout
   useEffect(() => {
-    if (!isPlaying || !isPhotoPost) return
+    if (!isPlaying || !iframeConfig) return
 
-    let isMounted = true
-
-    // 8-second timeout for oEmbed resolution
-    const timeoutId = setTimeout(() => {
-      if (isMounted) {
-        setPlayerStatus('fallback')
-      }
-    }, 8000)
-
-    fetchTikTokOEmbed(watchUrl).then((result) => {
-      if (!isMounted) return
-      clearTimeout(timeoutId)
-
-      if (result.ok && result.html && oembedRef.current) {
-        mountOEmbedHtml(oembedRef.current, result.html)
-        loadTikTokEmbedScript()
-        setPlayerStatus('ready')
-      } else {
-        setPlayerStatus('fallback')
-      }
-    }).catch(() => {
-      if (isMounted) {
-        clearTimeout(timeoutId)
-        setPlayerStatus('fallback')
-      }
-    })
-
-    return () => {
-      isMounted = false
-      clearTimeout(timeoutId)
+    // If strategy does not support postMessage (e.g. embed-v2), no timeout guessing
+    if (!iframeConfig.supportsMessages) {
+      return
     }
-  }, [isPlaying, isPhotoPost, watchUrl])
-
-  // Video postMessage listener & 8-second failure timeout
-  useEffect(() => {
-    if (!isPlaying || !isVideoPost) return
 
     // 8-second fallback timeout if onPlayerReady doesn't fire
     const timerId = setTimeout(() => {
-      setPlayerStatus((current) => (current === 'loading' ? 'timeout' : current))
+      setPlayerStatus((current) => {
+        if (current === 'loading') {
+          if (video?.id) markPostFailed(video.id)
+          return 'timeout'
+        }
+        return current
+      })
     }, 8000)
 
     const handleMessage = (event) => {
@@ -113,6 +109,7 @@ function TikTokPlayer({
         setPlayerStatus('ready')
       } else if (type === 'onPlayerError') {
         clearTimeout(timerId)
+        if (video?.id) markPostFailed(video.id)
         setErrorCode(value)
         setPlayerStatus('error')
       }
@@ -123,37 +120,52 @@ function TikTokPlayer({
       clearTimeout(timerId)
       window.removeEventListener('message', handleMessage)
     }
-  }, [isPlaying, isVideoPost, video?.id])
+  }, [isPlaying, iframeConfig, video?.id])
 
   if (!video || !video.id) {
     return null
   }
 
-  // Strictly forbid /player/v1/ for photo posts
-  const playerSrc = isPhotoPost ? null : buildPlayerSrc(video.id)
-
   const handleStartPlay = () => {
+    // If this post previously failed in this session, transition directly to fallback
+    if (isPostFailed(video.id) || !iframeConfig) {
+      setHasUserTappedPlay(true)
+      setPlayerStatus('fallback')
+      return
+    }
     setHasUserTappedPlay(true)
     setPlayerStatus('loading')
     setErrorCode(null)
   }
 
   const handleRetry = () => {
+    // Clear session failure on explicit user retry
+    if (video.id) {
+      clearPostFailure(video.id)
+    }
     setPlayerStatus('loading')
     setErrorCode(null)
-    if (iframeRef.current && playerSrc) {
-      iframeRef.current.src = playerSrc
+    if (iframeRef.current && iframeConfig?.src) {
+      iframeRef.current.src = iframeConfig.src
     }
   }
 
-  const isFailed = playerStatus === 'error' || playerStatus === 'timeout'
+  const isFailed = playerStatus === 'error' || playerStatus === 'timeout' || playerStatus === 'fallback'
   const errorInfo = isFailed
     ? playerStatus === 'timeout'
       ? getPlayerErrorInfo(3001)
-      : getPlayerErrorInfo(errorCode)
+      : playerStatus === 'fallback'
+        ? {
+            title: 'Hairstyle gallery on TikTok',
+            desc: 'This TikTok photo gallery can be viewed directly on TikTok.',
+          }
+        : getPlayerErrorInfo(errorCode)
     : null
 
-  const isPermanentError = errorInfo?.key === 'invalid-or-unsupported-media'
+  const isPermanentError =
+    playerStatus === 'fallback' ||
+    errorInfo?.key === 'invalid-or-unsupported-media' ||
+    !isRetryableError(errorCode)
 
   return (
     <div
@@ -163,37 +175,44 @@ function TikTokPlayer({
       <div className="tiktok-player-container">
         {isPlaying ? (
           <>
-            {isPhotoPost ? (
-              playerStatus === 'fallback' ? (
-                <div
-                  className="tiktok-fallback-card"
-                  role="region"
-                  aria-label={`TikTok photo gallery by @${handle}`}
-                >
-                  <div className="tiktok-fallback-poster">
-                    {coverImage ? (
-                      <img
-                        src={coverImage}
-                        alt={itemName}
-                        className="tiktok-fallback-img"
-                      />
-                    ) : (
-                      <MediaPlaceholder
-                        item={item}
-                        isSalon={item?.duration !== undefined}
-                        bare
-                      />
-                    )}
-                  </div>
-                  <div className="tiktok-fallback-content">
-                    <span className="tiktok-fallback-handle">
+            {isFailed || !iframeConfig ? (
+              <div
+                className="tiktok-fallback-card"
+                role="region"
+                aria-label={`TikTok ${isPhotoPost ? 'photo gallery' : 'video'} by @${handle}`}
+              >
+                <div className="tiktok-fallback-poster">
+                  {coverImage ? (
+                    <img
+                      src={coverImage}
+                      alt={itemName}
+                      className="tiktok-fallback-img"
+                    />
+                  ) : (
+                    <MediaPlaceholder
+                      item={item}
+                      isSalon={item?.duration !== undefined}
+                      bare
+                    />
+                  )}
+                </div>
+                <div className="tiktok-fallback-content">
+                  <span className="tiktok-fallback-handle">
+                    {isPhotoPost ? (
                       <Images size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-                      @{handle}
-                    </span>
-                    <h3 className="tiktok-fallback-title">{itemName}</h3>
-                    <p className="tiktok-fallback-desc">
-                      Multi-photo hairstyle gallery available on TikTok.
-                    </p>
+                    ) : (
+                      <Play size={14} fill="currentColor" style={{ verticalAlign: 'middle', marginRight: 4 }} />
+                    )}
+                    @{handle}
+                  </span>
+                  <h3 className="tiktok-fallback-title">{itemName}</h3>
+                  <p className="tiktok-fallback-desc">
+                    {errorInfo?.desc ||
+                      (isPhotoPost
+                        ? 'Multi-photo hairstyle gallery available on TikTok.'
+                        : 'Video preview available on TikTok.')}
+                  </p>
+                  <div className="tiktok-fallback-actions">
                     {watchUrl ? (
                       <a
                         href={watchUrl}
@@ -201,42 +220,23 @@ function TikTokPlayer({
                         rel="noopener noreferrer"
                         className="tiktok-fallback-cta"
                       >
-                        View this hairstyle gallery on TikTok
+                        {isPhotoPost
+                          ? 'View this hairstyle gallery on TikTok'
+                          : 'Watch on TikTok'}
                         <ExternalLink size={14} style={{ marginLeft: 6 }} />
                       </a>
                     ) : null}
+                    {!isPermanentError ? (
+                      <button
+                        type="button"
+                        className="tiktok-btn-retry"
+                        onClick={handleRetry}
+                      >
+                        <RefreshCw size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                        Retry
+                      </button>
+                    ) : null}
                   </div>
-                </div>
-              ) : (
-                <div
-                  ref={oembedRef}
-                  className={`tiktok-photo-container ${playerStatus === 'ready' ? 'loaded' : 'loading'}`}
-                  aria-label={`TikTok photo carousel for ${itemName}`}
-                >
-                  {playerStatus === 'loading' ? (
-                    <div className="tiktok-loading-spinner" aria-label="Loading TikTok post">
-                      <div className="spinner-ring" />
-                      <span>Loading gallery from TikTok...</span>
-                    </div>
-                  ) : null}
-                </div>
-              )
-            ) : isFailed ? (
-              <div className="tiktok-error-state" role="alert">
-                <AlertCircle size={28} className="tiktok-error-icon" />
-                <p className="tiktok-error-title">{errorInfo.title}</p>
-                <p className="tiktok-error-desc">{errorInfo.desc}</p>
-                <div className="tiktok-error-actions">
-                  {!isPermanentError ? (
-                    <button
-                      type="button"
-                      className="tiktok-btn-retry"
-                      onClick={handleRetry}
-                    >
-                      <RefreshCw size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-                      Retry
-                    </button>
-                  ) : null}
                 </div>
               </div>
             ) : (
@@ -247,15 +247,21 @@ function TikTokPlayer({
                     <span>Connecting to TikTok...</span>
                   </div>
                 ) : null}
-                {playerSrc ? (
+                {iframeConfig?.src ? (
                   <iframe
                     ref={iframeRef}
-                    src={playerSrc}
-                    title={`TikTok video: ${itemName}`}
+                    src={iframeConfig.src}
+                    title={`TikTok ${isPhotoPost ? 'photos' : 'video'}: ${itemName}`}
                     className={`tiktok-iframe ${playerStatus === 'ready' ? 'loaded' : 'loading'}`}
-                    allow="fullscreen"
-                    referrerPolicy="strict-origin-when-cross-origin"
-                    sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox"
+                    allow={iframeConfig.allow}
+                    sandbox={iframeConfig.sandbox || undefined}
+                    referrerPolicy={iframeConfig.referrerPolicy}
+                    loading="lazy"
+                    onLoad={() => {
+                      if (!iframeConfig.supportsMessages) {
+                        setPlayerStatus('ready')
+                      }
+                    }}
                   />
                 ) : null}
               </>
@@ -267,6 +273,8 @@ function TikTokPlayer({
               type="button"
               className="tiktok-facade"
               onClick={handleStartPlay}
+              onPointerDown={preconnectTikTok}
+              onMouseEnter={preconnectTikTok}
               aria-label={`Play TikTok ${isPhotoPost ? 'photo gallery' : 'video'}: ${itemName}`}
             >
               {coverImage ? (

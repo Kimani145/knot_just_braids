@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>TikTok photo-post embed lab</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 14px/1.45 system-ui, sans-serif; margin: 0; padding: 12px; max-width: 760px; margin-inline: auto; }
+  h1 { font-size: 18px; margin: 0 0 6px; }
+  p, li { margin: 4px 0; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; align-items: center; }
+  select, button { font: inherit; padding: 10px 12px; border-radius: 8px; border: 1px solid #8884; background: #8881; min-height: 44px; }
+  button.primary { background: #1a7f37; color: #fff; border-color: #1a7f37; }
+  #stage { width: 325px; max-width: 100%; height: 578px; border: 1px dashed #8886; border-radius: 8px; overflow: hidden; margin: 8px 0; }
+  #stage iframe { width: 100%; height: 100%; border: 0; display: block; }
+  #status { font-weight: 600; margin: 6px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  th, td { border: 1px solid #8884; padding: 4px 6px; text-align: left; vertical-align: top; word-break: break-word; }
+  textarea { width: 100%; min-height: 140px; font: 12px/1.3 ui-monospace, monospace; }
+  .note { font-size: 12px; opacity: .8; }
+</style>
+</head>
+<body>
+<h1>TikTok photo-post embed lab</h1>
+<p class="note">Open this page over http(s) (not file://). Nothing from TikTok loads until you press a button. Use your normal browser profile; repeat on your phone if you can.</p>
+
+<div class="row">
+  <label>Post <select id="post"></select></label>
+  <label>Variant <select id="variant"></select></label>
+</div>
+<div class="row">
+  <button class="primary" id="load">Load selected</button>
+  <button id="runAll">Run all (about 3 min)</button>
+  <button id="clear">Clear iframe</button>
+</div>
+<div class="row">
+  <span>You saw the swipeable photos?</span>
+  <button id="yes">Yes, it renders</button>
+  <button id="no">No, blank/error</button>
+</div>
+
+<div id="status">Idle.</div>
+<div id="stage" aria-live="polite"></div>
+
+<h2 style="font-size:15px">Results</h2>
+<table>
+  <thead><tr><th>Variant</th><th>Post</th><th>First msg</th><th>Events</th><th>Error</th><th>Seen?</th></tr></thead>
+  <tbody id="results"></tbody>
+</table>
+<div class="row">
+  <button id="copy">Copy results JSON</button>
+</div>
+<textarea id="out" readonly placeholder="Results JSON appears here"></textarea>
+
+<script>
+(function () {
+  'use strict';
+
+  var TIKTOK = 'https://www.tiktok.com';
+  var ALLOW_OFFICIAL = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen';
+  var SANDBOX_APP = 'allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox';
+  var TIMEOUT_MS = 8000;
+
+  var POSTS = [
+    { id: '7681345289243905298', kind: 'photo', label: 'photo: hair charms (...9298)' },
+    { id: '7679743513151655186', kind: 'photo', label: 'photo: invincible locs (...6155186)' },
+    { id: '7615692003048721671', kind: 'photo', label: 'photo: sisterlocs (...8721671)' },
+    { id: '7616082104308272392', kind: 'photo', label: 'photo: ponytail (...8272392)' },
+    { id: '7671327868349123848', kind: 'video', label: 'VIDEO control (...3848)' }
+  ];
+
+  // V1 mirrors the iframe TikTok's own oEmbed returned for these posts (per the saved curl log).
+  // The exact allow list was truncated in that log, so ALLOW_OFFICIAL is an assumption.
+  var VARIANTS = [
+    { key: 'V1', label: 'V1 official oEmbed iframe (no sandbox)',
+      src: function (id) { return TIKTOK + '/player/v1/' + id + '?embed_from=oembed&music_info=1&description=1&autoplay=1&muted=1'; },
+      allow: ALLOW_OFFICIAL, sandbox: null },
+    { key: 'V2', label: 'V2 = V1 + the app sandbox',
+      src: function (id) { return TIKTOK + '/player/v1/' + id + '?embed_from=oembed&music_info=1&description=1&autoplay=1&muted=1'; },
+      allow: ALLOW_OFFICIAL, sandbox: SANDBOX_APP },
+    { key: 'V3', label: 'V3 current app photo config (sandbox, allow=fullscreen)',
+      src: function (id) { return TIKTOK + '/player/v1/' + id + '?controls=1&volume_control=1&fullscreen_button=1&music_info=0&description=0&native_context_menu=1&muted=1'; },
+      allow: 'fullscreen', sandbox: SANDBOX_APP },
+    { key: 'V4', label: 'V4 minimal player (no params, no sandbox)',
+      src: function (id) { return TIKTOK + '/player/v1/' + id; },
+      allow: 'fullscreen', sandbox: null },
+    { key: 'V5', label: 'V5 embed/v2 (no sandbox)',
+      src: function (id) { return TIKTOK + '/embed/v2/' + id + '?lang=en-US'; },
+      allow: ALLOW_OFFICIAL, sandbox: null }
+  ];
+
+  var $ = function (id) { return document.getElementById(id); };
+  var postSel = $('post'), varSel = $('variant'), stage = $('stage'), statusEl = $('status');
+  var resultsBody = $('results'), out = $('out');
+  var results = [];
+  var current = null;
+
+  POSTS.forEach(function (p, i) { var o = document.createElement('option'); o.value = String(i); o.textContent = p.label; postSel.appendChild(o); });
+  VARIANTS.forEach(function (v, i) { var o = document.createElement('option'); o.value = String(i); o.textContent = v.label; varSel.appendChild(o); });
+
+  function setStatus(t) { statusEl.textContent = t; }
+
+  function clearStage() {
+    if (current && current.timer) clearTimeout(current.timer);
+    while (stage.firstChild) stage.removeChild(stage.firstChild);
+    current = null;
+  }
+
+  function render() {
+    resultsBody.textContent = '';
+    results.forEach(function (r) {
+      var tr = document.createElement('tr');
+      [r.variant, r.postId.slice(-6) + ' (' + r.kind + ')',
+       r.firstMessageMs == null ? 'none' : r.firstMessageMs + 'ms',
+       r.events.join(', ') || '-', r.error || '-', r.seen == null ? '?' : (r.seen ? 'yes' : 'no')
+      ].forEach(function (t) { var td = document.createElement('td'); td.textContent = t; tr.appendChild(td); });
+      resultsBody.appendChild(tr);
+    });
+    out.value = JSON.stringify({
+      userAgent: navigator.userAgent,
+      origin: location.origin,
+      ranAt: new Date().toISOString(),
+      results: results
+    }, null, 2);
+  }
+
+  function finish(reason) {
+    if (!current || current.done) return;
+    current.done = true;
+    if (current.timer) clearTimeout(current.timer);
+    current.record.finish = reason;
+    setStatus('Done (' + reason + '). Judge the frame, then press Yes/No.');
+    if (current.resolve) current.resolve();
+  }
+
+  function load(post, variant) {
+    clearStage();
+    var record = { variant: variant.key, postId: post.id, kind: post.kind, firstMessageMs: null, events: [], error: null, seen: null, finish: null, loadEvent: false };
+    results.push(record);
+    var started = performance.now();
+    var iframe = document.createElement('iframe');
+    iframe.title = 'TikTok lab ' + variant.key;
+    iframe.setAttribute('allow', variant.allow);
+    iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+    if (variant.sandbox) iframe.setAttribute('sandbox', variant.sandbox); // must be set before src
+    iframe.addEventListener('load', function () { record.loadEvent = true; });
+    current = { iframe: iframe, record: record, started: started, done: false, timer: null, resolve: null };
+    var p = new Promise(function (res) { current.resolve = res; });
+    iframe.src = variant.src(post.id);
+    stage.appendChild(iframe);
+    setStatus('Loading ' + variant.key + ' for ...' + post.id.slice(-6) + ' (waiting up to ' + (TIMEOUT_MS / 1000) + 's)');
+    current.timer = setTimeout(function () { finish(record.events.length ? 'timeout-after-events' : 'timeout-no-messages'); render(); }, TIMEOUT_MS);
+    render();
+    return p;
+  }
+
+  window.addEventListener('message', function (e) {
+    if (e.origin !== TIKTOK) return;                       // origin check
+    if (!current || e.source !== current.iframe.contentWindow) return; // source check
+    var d = e.data;
+    if (typeof d === 'string') { try { d = JSON.parse(d); } catch (_) { d = { raw: d.slice(0, 80) }; } }
+    if (!d || typeof d !== 'object') return;
+    var type = String(d.type || d.event || 'message').slice(0, 40);
+    var r = current.record;
+    if (r.firstMessageMs == null) r.firstMessageMs = Math.round(performance.now() - current.started);
+    if (r.events.indexOf(type) === -1) r.events.push(type);
+    if (/error/i.test(type)) {
+      var v = d.value;
+      r.error = type + ': ' + (v && typeof v === 'object' ? JSON.stringify(v).slice(0, 120) : String(v).slice(0, 120));
+      finish('error');
+    } else if (/ready/i.test(type)) {
+      finish('ready');
+    }
+    render();
+  });
+
+  $('load').addEventListener('click', function () { load(POSTS[+postSel.value], VARIANTS[+varSel.value]); });
+  $('clear').addEventListener('click', function () { clearStage(); setStatus('Idle.'); });
+
+  function mark(val) {
+    if (!results.length) return;
+    results[results.length - 1].seen = val;
+    render();
+  }
+  $('yes').addEventListener('click', function () { mark(true); });
+  $('no').addEventListener('click', function () { mark(false); });
+
+  $('runAll').addEventListener('click', async function () {
+    var btn = $('runAll'); btn.disabled = true;
+    for (var pi = 0; pi < POSTS.length; pi++) {
+      for (var vi = 0; vi < VARIANTS.length; vi++) {
+        await load(POSTS[pi], VARIANTS[vi]);
+        await new Promise(function (r) { setTimeout(r, 1200); });
+      }
+    }
+    clearStage();
+    setStatus('Run-all finished. Event data is logged; "Seen?" stays "?" for automatic runs (judge visually with Load + Yes/No for the interesting ones).');
+    btn.disabled = false;
+  });
+
+  $('copy').addEventListener('click', function () {
+    out.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (_) {}
+    if (!ok && navigator.clipboard) navigator.clipboard.writeText(out.value);
+    setStatus('Results copied. Paste them back to Claude.');
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

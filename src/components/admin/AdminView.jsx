@@ -1144,6 +1144,13 @@ function AdminView({
             <CatalogLintBanner
               warnings={catalogWarnings}
               onBulkUnpublish={handleBulkUnpublish}
+              onEditItem={(itemId, catalogType) => {
+                const list = catalogType === 'salon' ? salonStyles : beadProducts
+                const found = list.find((item) => item.id === itemId)
+                if (found) {
+                  openInventoryEdit(found, catalogType)
+                }
+              }}
             />
             <SalonManager
               salonStyles={salonStyles}

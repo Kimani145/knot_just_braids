@@ -19,5 +19,10 @@ This directory contains verified, timestamped logs from empirical testing of Tik
    - Results:
      - Direct `/photo/` oEmbed request $\rightarrow$ `HTTP 400` ("Something went wrong").
      - Rewritten `/video/` oEmbed request $\rightarrow$ `HTTP 200`, returning TikTok's official iframe markup: `<iframe height="578" width="325" src="https://www.tiktok.com/player/v1/{id}?embed_from=oembed&music_info=1&description=1&autoplay=1&muted=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; gyroscope; picture-in-picture; web-share" allowfullscreen loading="lazy"></iframe>`.
-3. Lab Test Harness:
+3. `carousel-2026-10-22.json`:
+   - Empirical browser test log generated 2026-10-22T19:37:04.215Z evaluating carousel timeline, auto-advance races, and `navigateTo` commands.
+   - Identified that `autoplay=1` caused TikTok's internal audio track to advance slides prematurely (Variant K1).
+   - Validated Variant K2 (`embed_from=oembed&music_info=0&description=0&muted=1`) and verified that `navigateTo(0)`, `navigateTo(1)`, and `navigateTo(2)` respond with predictable `onImageChange` events.
+   - Verified that attempts to navigate past the end produce no `onImageChange` within 700ms, enabling lazy end-detection.
+4. Lab Test Harness:
    - Preserved in repository at `docs/research/lab/tiktok-lab.html`.

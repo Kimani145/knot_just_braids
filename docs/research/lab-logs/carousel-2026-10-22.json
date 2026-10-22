@@ -1,0 +1,333 @@
+{
+  "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+  "origin": "http://0.0.0.0:8080",
+  "ranAt": "2026-10-22T19:37:04.215Z",
+  "quickPatchWorked": "yes",
+  "runs": [
+    {
+      "variant": "K1",
+      "query": "embed_from=oembed&music_info=1&description=1&autoplay=1&muted=1",
+      "postId": "7616082104308272392",
+      "observeMs": 0,
+      "timeline": [
+        {
+          "t": 8,
+          "e": "iframe created",
+          "v": {
+            "variant": "K1"
+          }
+        },
+        {
+          "t": 6058,
+          "e": "onPlayerReady",
+          "v": null
+        },
+        {
+          "t": 6793,
+          "e": "onMute",
+          "v": true
+        },
+        {
+          "t": 6798,
+          "e": "onVolumeChange",
+          "v": 100
+        },
+        {
+          "t": 6811,
+          "e": "onStateChange",
+          "v": 3
+        },
+        {
+          "t": 6999,
+          "e": "onStateChange",
+          "v": 1
+        },
+        {
+          "t": 9219,
+          "e": "onImageChange",
+          "v": 1
+        },
+        {
+          "t": 12010,
+          "e": "onImageChange",
+          "v": 0
+        },
+        {
+          "t": 14177,
+          "e": "onImageChange",
+          "v": 1
+        },
+        {
+          "t": 22002,
+          "e": "SENT navigateTo",
+          "v": 0
+        },
+        {
+          "t": 22033,
+          "e": "onImageChange",
+          "v": 0
+        },
+        {
+          "t": 23481,
+          "e": "SENT navigateTo",
+          "v": 1
+        },
+        {
+          "t": 23509,
+          "e": "onImageChange",
+          "v": 1
+        },
+        {
+          "t": 25381,
+          "e": "message",
+          "v": null
+        }
+      ]
+    },
+    {
+      "variant": "K2",
+      "query": "embed_from=oembed&music_info=0&description=0&muted=1",
+      "postId": "7616082104308272392",
+      "observeMs": 0,
+      "timeline": [
+        {
+          "t": 17,
+          "e": "iframe created",
+          "v": {
+            "variant": "K2"
+          }
+        },
+        {
+          "t": 5359,
+          "e": "onPlayerReady",
+          "v": null
+        },
+        {
+          "t": 5398,
+          "e": "onMute",
+          "v": true
+        },
+        {
+          "t": 5410,
+          "e": "onVolumeChange",
+          "v": 100
+        },
+        {
+          "t": 5438,
+          "e": "onStateChange",
+          "v": 3
+        },
+        {
+          "t": 7095,
+          "e": "onStateChange",
+          "v": 1
+        },
+        {
+          "t": 8524,
+          "e": "next: idx unknown (no onImageChange yet)",
+          "v": null
+        },
+        {
+          "t": 9482,
+          "e": "next: idx unknown (no onImageChange yet)",
+          "v": null
+        },
+        {
+          "t": 10082,
+          "e": "prev: idx unknown",
+          "v": null
+        },
+        {
+          "t": 12288,
+          "e": "SENT navigateTo",
+          "v": 0
+        },
+        {
+          "t": 12994,
+          "e": "navigateTo 0 produced NO onImageChange within 700ms (end/ignored?)",
+          "v": null
+        },
+        {
+          "t": 13843,
+          "e": "SENT navigateTo",
+          "v": 1
+        },
+        {
+          "t": 13997,
+          "e": "onImageChange",
+          "v": 1
+        },
+        {
+          "t": 15811,
+          "e": "onStateChange",
+          "v": 3
+        },
+        {
+          "t": 16991,
+          "e": "onStateChange",
+          "v": 1
+        },
+        {
+          "t": 17718,
+          "e": "SENT unMute",
+          "v": null
+        },
+        {
+          "t": 17767,
+          "e": "onMute",
+          "v": false
+        },
+        {
+          "t": 17786,
+          "e": "onVolumeChange",
+          "v": 100
+        },
+        {
+          "t": 21507,
+          "e": "onStateChange",
+          "v": 3
+        },
+        {
+          "t": 23364,
+          "e": "SENT mute",
+          "v": null
+        },
+        {
+          "t": 23404,
+          "e": "onMute",
+          "v": true
+        },
+        {
+          "t": 23412,
+          "e": "onVolumeChange",
+          "v": 100
+        },
+        {
+          "t": 25213,
+          "e": "SENT mute",
+          "v": null
+        },
+        {
+          "t": 26022,
+          "e": "onStateChange",
+          "v": 1
+        },
+        {
+          "t": 33298,
+          "e": "message",
+          "v": null
+        }
+      ]
+    },
+    {
+      "variant": "K2",
+      "query": "embed_from=oembed&music_info=0&description=0&muted=1",
+      "postId": "7679743513151655186",
+      "observeMs": 0,
+      "timeline": [
+        {
+          "t": 7,
+          "e": "iframe created",
+          "v": {
+            "variant": "K2"
+          }
+        },
+        {
+          "t": 15716,
+          "e": "onPlayerReady",
+          "v": null
+        },
+        {
+          "t": 15753,
+          "e": "onMute",
+          "v": true
+        },
+        {
+          "t": 15760,
+          "e": "onVolumeChange",
+          "v": 100
+        },
+        {
+          "t": 15788,
+          "e": "onStateChange",
+          "v": 3
+        },
+        {
+          "t": 16743,
+          "e": "onStateChange",
+          "v": 1
+        },
+        {
+          "t": 19765,
+          "e": "message",
+          "v": null
+        },
+        {
+          "t": 26756,
+          "e": "onImageChange",
+          "v": 1
+        },
+        {
+          "t": 30624,
+          "e": "onImageChange",
+          "v": 2
+        },
+        {
+          "t": 32380,
+          "e": "onImageChange",
+          "v": 1
+        },
+        {
+          "t": 34534,
+          "e": "SENT navigateTo",
+          "v": 2
+        },
+        {
+          "t": 34584,
+          "e": "onImageChange",
+          "v": 2
+        },
+        {
+          "t": 36536,
+          "e": "SENT navigateTo",
+          "v": 1
+        },
+        {
+          "t": 36586,
+          "e": "onImageChange",
+          "v": 1
+        },
+        {
+          "t": 40334,
+          "e": "SENT navigateTo",
+          "v": 0
+        },
+        {
+          "t": 40390,
+          "e": "onImageChange",
+          "v": 0
+        },
+        {
+          "t": 49237,
+          "e": "onStateChange",
+          "v": 2
+        },
+        {
+          "t": 84549,
+          "e": "onStateChange",
+          "v": 1
+        },
+        {
+          "t": 112235,
+          "e": "onStateChange",
+          "v": 3
+        },
+        {
+          "t": 112305,
+          "e": "onStateChange",
+          "v": 1
+        }
+      ]
+    }
+  ]
+}

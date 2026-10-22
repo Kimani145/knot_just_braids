@@ -1,14 +1,29 @@
-import { useEffect, useRef, useState } from 'react'
-import { AlertCircle, Images, Play, RefreshCw, ExternalLink } from 'lucide-react'
+import { useEffect, useReducer, useRef, useState } from 'react'
+import {
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  Images,
+  Play,
+  RefreshCw,
+} from 'lucide-react'
 import { buildWatchUrl } from '../../utils/tiktok'
 import { PHOTO_EMBED_STRATEGY } from '../../utils/tiktokStrategy'
 import {
-  getIframeConfig,
-  markPostFailed,
-  isPostFailed,
   clearPostFailure,
+  getIframeConfig,
+  isPostFailed,
+  markPostFailed,
 } from '../../utils/tiktokProfiles'
 import { getPlayerErrorInfo, isRetryableError } from '../../utils/tiktokErrors'
+import {
+  END_DETECTION_TIMEOUT_MS,
+  initialPhotoCarouselState,
+  isValidImageIndex,
+  photoCarouselReducer,
+  postTikTokCommand,
+} from '../../utils/photoCarousel'
 import MediaPlaceholder from '../common/MediaPlaceholder'
 
 let preconnected = false
@@ -38,13 +53,21 @@ function TikTokPlayer({
   const [errorCode, setErrorCode] = useState(null)
   const iframeRef = useRef(null)
 
+  // Pure photo carousel state tracking and lazy end-detection
+  const [carouselState, dispatchCarousel] = useReducer(
+    photoCarouselReducer,
+    initialPhotoCarouselState
+  )
+  const throttleRef = useRef({ lastSentAt: 0 })
+  const timeoutTimerRef = useRef(null)
+
   const [prevSlideState, setPrevSlideState] = useState({
     id: video?.id,
     isActiveSlide,
     isOpen,
   })
 
-  // Reset play state during render when video, slide, or modal status changes
+  // Reset play and carousel states when video, slide, or modal status changes
   if (
     video?.id !== prevSlideState.id ||
     isActiveSlide !== prevSlideState.isActiveSlide ||
@@ -59,8 +82,18 @@ function TikTokPlayer({
       setHasUserTappedPlay(false)
       setPlayerStatus('idle')
       setErrorCode(null)
+      dispatchCarousel({ type: 'RESET' })
     }
   }
+
+  // Clear timeout timer when slide or modal becomes inactive
+  useEffect(() => {
+    if (!isOpen || !isActiveSlide) {
+      if (timeoutTimerRef.current) {
+        clearTimeout(timeoutTimerRef.current)
+      }
+    }
+  }, [isOpen, isActiveSlide])
 
   const isPlaying = Boolean(hasUserTappedPlay && isOpen && isActiveSlide)
   const isPhotoPost = video?.kind === 'photo'
@@ -71,6 +104,19 @@ function TikTokPlayer({
   // Determine active profile for this media kind
   const activeProfile = isPhotoPost ? PHOTO_EMBED_STRATEGY : 'official-player'
   const iframeConfig = getIframeConfig(video, activeProfile)
+
+  // Auto-advance guard action: If an automated onImageChange triggered guard, reset to photo 0 once
+  useEffect(() => {
+    if (carouselState.needsResetToZero && iframeRef.current?.contentWindow) {
+      postTikTokCommand(
+        iframeRef.current.contentWindow,
+        'navigateTo',
+        0,
+        throttleRef.current
+      )
+      dispatchCarousel({ type: 'ACK_RESET_TO_ZERO' })
+    }
+  }, [carouselState.needsResetToZero])
 
   // Video/Photo postMessage listener & failure timeout
   useEffect(() => {
@@ -107,6 +153,25 @@ function TikTokPlayer({
       if (type === 'onPlayerReady') {
         clearTimeout(timerId)
         setPlayerStatus('ready')
+        dispatchCarousel({ type: 'PLAYER_READY', readyAt: Date.now() })
+
+        // Photo posts: Pause background music track to prevent auto-advancing slides
+        if (isPhotoPost && iframeRef.current?.contentWindow) {
+          postTikTokCommand(
+            iframeRef.current.contentWindow,
+            'pause',
+            null,
+            throttleRef.current
+          )
+        }
+      } else if (type === 'onImageChange') {
+        // Strict index validation (0 <= integer < 100)
+        if (isValidImageIndex(value)) {
+          if (timeoutTimerRef.current) {
+            clearTimeout(timeoutTimerRef.current)
+          }
+          dispatchCarousel({ type: 'IMAGE_CHANGE', index: value, now: Date.now() })
+        }
       } else if (type === 'onPlayerError') {
         clearTimeout(timerId)
         if (video?.id) markPostFailed(video.id)
@@ -119,8 +184,11 @@ function TikTokPlayer({
     return () => {
       clearTimeout(timerId)
       window.removeEventListener('message', handleMessage)
+      if (timeoutTimerRef.current) {
+        clearTimeout(timeoutTimerRef.current)
+      }
     }
-  }, [isPlaying, iframeConfig, video?.id])
+  }, [isPlaying, iframeConfig, video?.id, isPhotoPost])
 
   if (!video || !video.id) {
     return null
@@ -145,8 +213,66 @@ function TikTokPlayer({
     }
     setPlayerStatus('loading')
     setErrorCode(null)
+    dispatchCarousel({ type: 'RESET' })
     if (iframeRef.current && iframeConfig?.src) {
       iframeRef.current.src = iframeConfig.src
+    }
+  }
+
+  // Photo navigation handlers
+  const handlePrevPhoto = () => {
+    if (timeoutTimerRef.current) clearTimeout(timeoutTimerRef.current)
+    const targetIndex = Math.max(0, carouselState.currentIndex - 1)
+    dispatchCarousel({ type: 'USER_NAVIGATE', targetIndex })
+    if (iframeRef.current?.contentWindow) {
+      postTikTokCommand(
+        iframeRef.current.contentWindow,
+        'navigateTo',
+        targetIndex,
+        throttleRef.current
+      )
+    }
+  }
+
+  const handleNextPhoto = () => {
+    if (timeoutTimerRef.current) clearTimeout(timeoutTimerRef.current)
+    const targetIndex = carouselState.currentIndex + 1
+    dispatchCarousel({ type: 'USER_NAVIGATE', targetIndex })
+    if (iframeRef.current?.contentWindow) {
+      postTikTokCommand(
+        iframeRef.current.contentWindow,
+        'navigateTo',
+        targetIndex,
+        throttleRef.current
+      )
+    }
+    // End detection: if navigateTo produces no onImageChange within timeout, mark end
+    timeoutTimerRef.current = setTimeout(() => {
+      dispatchCarousel({ type: 'NAVIGATE_TIMEOUT', targetIndex })
+    }, END_DETECTION_TIMEOUT_MS)
+  }
+
+  const handleNavigateTo = (targetIndex) => {
+    if (!isValidImageIndex(targetIndex)) return
+    if (timeoutTimerRef.current) clearTimeout(timeoutTimerRef.current)
+    dispatchCarousel({ type: 'USER_NAVIGATE', targetIndex })
+    if (iframeRef.current?.contentWindow) {
+      postTikTokCommand(
+        iframeRef.current.contentWindow,
+        'navigateTo',
+        targetIndex,
+        throttleRef.current
+      )
+    }
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault()
+      handlePrevPhoto()
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault()
+      handleNextPhoto()
     }
   }
 
@@ -169,10 +295,10 @@ function TikTokPlayer({
 
   return (
     <div
-      className="tiktok-player-wrapper"
+      className={`tiktok-player-wrapper ${isPhotoPost ? 'is-photo' : ''}`}
       aria-label={`TikTok post by @${handle}`}
     >
-      <div className="tiktok-player-container">
+      <div className={`tiktok-player-container ${isPhotoPost ? 'is-photo' : ''}`}>
         {isPlaying ? (
           <>
             {isFailed || !iframeConfig ? (
@@ -248,21 +374,83 @@ function TikTokPlayer({
                   </div>
                 ) : null}
                 {iframeConfig?.src ? (
-                  <iframe
-                    ref={iframeRef}
-                    src={iframeConfig.src}
-                    title={`TikTok ${isPhotoPost ? 'photos' : 'video'}: ${itemName}`}
-                    className={`tiktok-iframe ${playerStatus === 'ready' ? 'loaded' : 'loading'}`}
-                    allow={iframeConfig.allow}
-                    sandbox={iframeConfig.sandbox || undefined}
-                    referrerPolicy={iframeConfig.referrerPolicy}
-                    loading="lazy"
-                    onLoad={() => {
-                      if (!iframeConfig.supportsMessages) {
-                        setPlayerStatus('ready')
-                      }
-                    }}
-                  />
+                  <div className={`tiktok-iframe-wrapper ${isPhotoPost ? 'is-photo' : ''}`}>
+                    <iframe
+                      ref={iframeRef}
+                      src={iframeConfig.src}
+                      title={`TikTok ${isPhotoPost ? 'photos' : 'video'}: ${itemName}`}
+                      className={`tiktok-iframe ${isPhotoPost ? 'is-photo' : ''} ${playerStatus === 'ready' ? 'loaded' : 'loading'}`}
+                      allow={iframeConfig.allow}
+                      sandbox={iframeConfig.sandbox || undefined}
+                      referrerPolicy={iframeConfig.referrerPolicy}
+                      loading="lazy"
+                      onLoad={() => {
+                        if (!iframeConfig.supportsMessages) {
+                          setPlayerStatus('ready')
+                        }
+                      }}
+                    />
+                  </div>
+                ) : null}
+
+                {/* Primary navigation controls for photo carousels */}
+                {isPhotoPost && playerStatus === 'ready' ? (
+                  <div
+                    className="tiktok-photo-controls"
+                    role="region"
+                    aria-label="Photo carousel navigation"
+                    tabIndex={0}
+                    onKeyDown={handleKeyDown}
+                  >
+                    <button
+                      type="button"
+                      className="tiktok-photo-nav-btn prev"
+                      onClick={handlePrevPhoto}
+                      disabled={carouselState.currentIndex === 0}
+                      aria-label="Previous photo"
+                    >
+                      <ChevronLeft size={20} aria-hidden="true" />
+                    </button>
+
+                    <div className="tiktok-photo-indicator-wrap">
+                      <span className="tiktok-photo-counter" aria-live="polite">
+                        {carouselState.totalPhotos !== null
+                          ? `Photo ${carouselState.currentIndex + 1} of ${carouselState.totalPhotos}`
+                          : `Photo ${carouselState.currentIndex + 1}`}
+                      </span>
+
+                      {carouselState.totalPhotos !== null && carouselState.totalPhotos > 1 ? (
+                        <div
+                          className="tiktok-photo-dots"
+                          role="tablist"
+                          aria-label="Photo dots"
+                        >
+                          {Array.from({ length: carouselState.totalPhotos }).map((_, idx) => (
+                            <button
+                              key={`photo-dot-${idx}`}
+                              type="button"
+                              className={`tiktok-photo-dot ${
+                                idx === carouselState.currentIndex ? 'active' : ''
+                              }`}
+                              onClick={() => handleNavigateTo(idx)}
+                              aria-label={`Go to photo ${idx + 1}`}
+                              aria-current={idx === carouselState.currentIndex ? 'true' : undefined}
+                            />
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <button
+                      type="button"
+                      className="tiktok-photo-nav-btn next"
+                      onClick={handleNextPhoto}
+                      disabled={carouselState.isAtEnd}
+                      aria-label="Next photo"
+                    >
+                      <ChevronRight size={20} aria-hidden="true" />
+                    </button>
+                  </div>
                 ) : null}
               </>
             )}

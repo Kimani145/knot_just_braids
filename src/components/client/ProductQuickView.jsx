@@ -61,6 +61,7 @@ function ProductQuickViewContent({
 
   const activeSlide = slides[activeIndex]
   const isVideoSlide = activeSlide?.type === 'video'
+  const isPhotoSlide = activeSlide?.type === 'video' && activeSlide?.video?.kind === 'photo'
 
   const pricingType = item?.pricingType === 'range' ? 'range' : 'fixed'
   const isRangeProduct = !isSalon && pricingType === 'range'
@@ -147,7 +148,11 @@ function ProductQuickViewContent({
       <div className="quick-view-content">
         <div
           className={`quick-view-carousel ${item.bg || ''} ${
-            isVideoSlide ? 'carousel-video-mode' : 'carousel-image-mode'
+            isPhotoSlide
+              ? 'carousel-photo-mode'
+              : isVideoSlide
+                ? 'carousel-video-mode'
+                : 'carousel-image-mode'
           }`}
         >
           {slides.length ? (

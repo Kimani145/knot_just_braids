@@ -26,18 +26,26 @@ test('PR-G 1: Default strategy is official-player with embedding enabled', () =>
 
 test('PR-G 2: Winning profile (official-player) generates official oEmbed iframe structure', () => {
   const photoId = '7679743513151655186'
-  const config = getIframeConfig({ id: photoId, kind: 'photo' }, 'official-player')
+  const photoConfig = getIframeConfig({ id: photoId, kind: 'photo' }, 'official-player')
 
-  assert.ok(config)
-  assert.equal(config.profile, 'official-player')
+  assert.ok(photoConfig)
+  assert.equal(photoConfig.profile, 'official-player')
   assert.equal(
-    config.src,
-    `https://www.tiktok.com/player/v1/${photoId}?embed_from=oembed&music_info=1&description=1&autoplay=1&muted=1`
+    photoConfig.src,
+    `https://www.tiktok.com/player/v1/${photoId}?embed_from=oembed&music_info=0&description=0&muted=1&volume_control=0`
   )
-  assert.equal(config.allow, OFFICIAL_ALLOW)
-  assert.equal(config.sandbox, null, 'Official profile must omit sandbox attribute per lab findings')
-  assert.equal(config.referrerPolicy, REFERRER_POLICY)
-  assert.equal(config.supportsMessages, true)
+  assert.equal(photoConfig.allow, OFFICIAL_ALLOW)
+  assert.equal(photoConfig.sandbox, null, 'Official profile must omit sandbox attribute per lab findings')
+  assert.equal(photoConfig.referrerPolicy, REFERRER_POLICY)
+  assert.equal(photoConfig.supportsMessages, true)
+
+  const videoId = '7671327868349123848'
+  const videoConfig = getIframeConfig({ id: videoId, kind: 'video' }, 'official-player')
+  assert.ok(videoConfig)
+  assert.equal(
+    videoConfig.src,
+    `https://www.tiktok.com/player/v1/${videoId}?embed_from=oembed&music_info=1&description=1&autoplay=1&muted=1`
+  )
 })
 
 test('PR-G 3: Session failure cache remembers failed post IDs and avoids infinite retry loops', () => {

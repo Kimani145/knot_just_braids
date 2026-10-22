@@ -28,9 +28,13 @@ export const TIKTOK_IFRAME_PROFILES = Object.freeze({
   'official-player': Object.freeze({
     name: 'official-player',
     description: 'Official TikTok oEmbed player/v1 parameters with official allow string and no sandbox',
-    buildSrc: (id) => {
+    buildSrc: (id, { kind = 'video' } = {}) => {
       if (!isValidTikTokId(id)) return null
-      return `https://www.tiktok.com/player/v1/${id.trim()}?embed_from=oembed&music_info=1&description=1&autoplay=1&muted=1`
+      const isPhoto = kind === 'photo'
+      const query = isPhoto
+        ? 'embed_from=oembed&music_info=0&description=0&muted=1&volume_control=0'
+        : 'embed_from=oembed&music_info=1&description=1&autoplay=1&muted=1'
+      return `https://www.tiktok.com/player/v1/${id.trim()}?${query}`
     },
     allow: OFFICIAL_ALLOW,
     sandbox: null,
@@ -42,9 +46,13 @@ export const TIKTOK_IFRAME_PROFILES = Object.freeze({
   'official-player-sandboxed': Object.freeze({
     name: 'official-player-sandboxed',
     description: 'Official oEmbed parameters constrained with standard 5-flag sandbox',
-    buildSrc: (id) => {
+    buildSrc: (id, { kind = 'video' } = {}) => {
       if (!isValidTikTokId(id)) return null
-      return `https://www.tiktok.com/player/v1/${id.trim()}?embed_from=oembed&music_info=1&description=1&autoplay=1&muted=1`
+      const isPhoto = kind === 'photo'
+      const query = isPhoto
+        ? 'embed_from=oembed&music_info=0&description=0&muted=1&volume_control=0'
+        : 'embed_from=oembed&music_info=1&description=1&autoplay=1&muted=1'
+      return `https://www.tiktok.com/player/v1/${id.trim()}?${query}`
     },
     allow: OFFICIAL_ALLOW,
     sandbox: SANDBOX_APP,

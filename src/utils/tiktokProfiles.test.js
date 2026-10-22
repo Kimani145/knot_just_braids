@@ -20,7 +20,7 @@ describe('TIKTOK_IFRAME_PROFILES configuration and purity', () => {
     assert.ok(TIKTOK_IFRAME_PROFILES['link-only'])
   })
 
-  it('official-player (V1 Winner) matches exact verified oEmbed output without sandbox', () => {
+  it('official-player (V1 Winner) matches verified oEmbed output with kind-aware photo/video parameters', () => {
     const profile = TIKTOK_IFRAME_PROFILES['official-player']
     assert.equal(profile.name, 'official-player')
     assert.equal(profile.sandbox, null)
@@ -28,10 +28,18 @@ describe('TIKTOK_IFRAME_PROFILES configuration and purity', () => {
     assert.equal(profile.referrerPolicy, REFERRER_POLICY)
     assert.equal(profile.supportsMessages, true)
 
-    const src = profile.buildSrc(validPhotoId)
+    // Video URL includes autoplay=1 and music_info=1
+    const videoSrc = profile.buildSrc(validVideoId, { kind: 'video' })
     assert.equal(
-      src,
-      `https://www.tiktok.com/player/v1/${validPhotoId}?embed_from=oembed&music_info=1&description=1&autoplay=1&muted=1`
+      videoSrc,
+      `https://www.tiktok.com/player/v1/${validVideoId}?embed_from=oembed&music_info=1&description=1&autoplay=1&muted=1`
+    )
+
+    // Photo URL omits autoplay and disables music_info/description/volume_control per LAB2_RESULT
+    const photoSrc = profile.buildSrc(validPhotoId, { kind: 'photo' })
+    assert.equal(
+      photoSrc,
+      `https://www.tiktok.com/player/v1/${validPhotoId}?embed_from=oembed&music_info=0&description=0&muted=1&volume_control=0`
     )
   })
 
@@ -112,7 +120,7 @@ describe('TIKTOK_IFRAME_PROFILES configuration and purity', () => {
     )
     assert.deepEqual(photoConfig, {
       profile: 'official-player',
-      src: `https://www.tiktok.com/player/v1/${validPhotoId}?embed_from=oembed&music_info=1&description=1&autoplay=1&muted=1`,
+      src: `https://www.tiktok.com/player/v1/${validPhotoId}?embed_from=oembed&music_info=0&description=0&muted=1&volume_control=0`,
       allow: OFFICIAL_ALLOW,
       sandbox: null,
       referrerPolicy: REFERRER_POLICY,

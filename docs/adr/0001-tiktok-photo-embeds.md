@@ -54,16 +54,22 @@ Empirical browser lab testing on 2026-10-22 (`docs/research/lab-logs/browser-202
 5. **Kill Switch:**
    - Environment variable `VITE_TIKTOK_PHOTO_STRATEGY` allows instant fallback to `link-only`, `official-player-sandboxed`, `minimal-player`, or `embed-v2` without code modification.
 
+6. **Photo Carousel Controls & Race Prevention (PR-H):**
+   - **Race Prevention via Parameter Tuning:** Photo posts omit `autoplay=1` and pass `music_info=0&description=0&muted=1&volume_control=0`. On `onPlayerReady`, the host immediately sends a `pause` command.
+   - **Auto-Advance Guard:** If TikTok emits an automated `onImageChange` within 3s of player ready without user action, the guard dispatches `navigateTo(0)` once to anchor on photo 1.
+   - **Host Navigation Controls:** 44px Prev/Next buttons, live region ("Photo X of N"), and lazy end-detection (~700ms timeout on forward navigation) discover total photos $N$ without relying on unexposed TikTok properties.
+   - **Throttling & Validation:** Host-to-player postMessage commands are throttled to 150ms with strict `'https://www.tiktok.com'` target origin; incoming indices are validated as non-negative integers.
+
 ---
 
 ## 3. Consequences
 
 ### Positive
-- **Working Photo UX:** TikTok photo posts now play directly inside the storefront with swipeable carousels.
+- **Working Photo UX:** TikTok photo posts play directly inside the storefront with reliable host navigation and no auto-advance race conditions.
 - **Fail-Safe Reliability:** If TikTok blocks embedding for a specific post, the application falls back gracefully to customer photos and a direct link.
 - **Zero Host Origin Vulnerability:** Third-party scripts are completely excluded from the host origin.
 
 ### Verification Matrix
-- All 169 unit tests passing (`npm run test:unit`).
+- All 183 unit tests passing (`npm run test:unit`).
 - ESLint clean with 0 errors across `src/`.
-- Production bundle size remains optimal (~127 kB main bundle).
+- Production bundle size remains optimal (~131 kB main bundle).

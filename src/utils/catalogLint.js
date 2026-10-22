@@ -147,7 +147,7 @@ export function lintCatalog(items = [], catalogType = 'beads', options = {}) {
         itemName: nameA || 'Untitled item',
         catalogType,
         status: 'published',
-        message: `"${nameA || 'Untitled item'}" only has TikTok photo posts and has no uploaded photos. Upload photos so customers can swipe through them.`,
+        message: `"${nameA || 'Untitled item'}" only has TikTok photo posts and has no uploaded photos. Own photos load fastest and ensure a great customer experience.`,
         severity: 'warning',
       })
     }

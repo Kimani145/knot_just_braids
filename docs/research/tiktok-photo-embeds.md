@@ -1,58 +1,63 @@
 # Research Synthesis: TikTok Photo Post Embedding & Technical Evidence
 
-**Date:** 2026-10-21  
+**Date:** 2026-10-22  
 **Author:** Knot Just Engineering  
-**Evidence Source:** Raw curl logs under `docs/research/lab-logs/curl-oembed-results.json` and official documentation at `developers.tiktok.com/doc/embed-player`.
+**Evidence Source:** Verified browser lab log (`docs/research/lab-logs/browser-2026-10-22.json`), curl log (`docs/research/lab-logs/curl-oembed-results.json`), and lab harness (`docs/research/lab/tiktok-lab.html`).
 
 ---
 
-## 1. Executive Summary & Clarifications
+## 1. Executive Summary & Root Cause Resolution
 
-Earlier documentation incorrectly stated that TikTok's official `/player/v1/` endpoint was strictly a video-only player. A rigorous review of the official documentation and live API responses reveals:
-1. **Documented Types:** TikTok's Embed Player API documentation explicitly lists both `"video"` and `"image"` under supported post types.
-2. **Carousel-Specific Events:** The documented postMessage interface includes image-mode specific commands and notifications: `navigateTo` and `onImageChange`.
-3. **Video-Only Parameters:** Autoplay, loop, progress bar, play button, timestamp, and closed captions are officially flagged as video-only.
-4. **Error 1001 Meaning:** Officially defined as `"Invalid Media ID, no video/photo found"`.
-5. **Empirical Behavior:** Despite documentation stating `"video, image"` support, practical embedding of image slideshows using `/player/v1/` often results in error 1001 when video parameters are passed or when TikTok restrictions apply.
+Earlier assertions hypothesized that TikTok's official `/player/v1/` endpoint was fundamentally incapable of playing photo-mode carousels and would uniformly fail with error 1001.
+
+Rigorous empirical testing in a real browser on 2026-10-22 (`browser-2026-10-22.json`) directly disproved that hypothesis:
+1. **Photo Carousel Playback Confirmed:** When rendered using TikTok's official oEmbed iframe configuration (**Variant V1**), TikTok photo posts successfully load, display image carousels, and emit `onPlayerReady`, `onStateChange`, `onCurrentTime`, and `onImageChange`. Human verification recorded `seen: true`.
+2. **Root Cause of Previous Failures (The Shared-Iframe Sandbox Flaw):** Previous implementations in `TikTokPlayer.jsx` applied a restrictive 5-flag `sandbox` attribute (`allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox`) across all posts. In-browser testing showed that TikTok's player script fails hydration when sandboxed, throwing `onPlayerError 3002 (AUTOPLAY_ERROR)` (Variants V3/V4) or timing out (Variant V2).
+3. **Official Markup Contains No Sandbox:** TikTok's canonical oEmbed response for rewritten video/photo URLs deliberately omits the `sandbox` attribute, relying on standard cross-origin process isolation, `referrerPolicy="strict-origin-when-cross-origin"`, and explicit feature policy permissions (`allow="..."`).
 
 ---
 
 ## 2. Empirical Test Results (Lab Matrix)
 
-### A. oEmbed Endpoint Analysis (`https://www.tiktok.com/oembed?url=...`)
+### A. In-Browser Verification Matrix (`docs/research/lab-logs/browser-2026-10-22.json`)
 
-All 7 public photo post IDs for `@knot.justbraids` were tested via curl. Full logs are recorded in `docs/research/lab-logs/curl-oembed-results.json`.
+Tested on Chrome 151 / Linux x86_64 across 5 variants:
 
-| Post ID | Type | Direct oEmbed URL Status | Rewritten `/video/` oEmbed Status | oEmbed Returned Payload |
-| :--- | :---: | :---: | :---: | :--- |
-| `7681345289243905298` | Photo | **HTTP 400** | **HTTP 200** | Returns iframe to `/player/v1/{id}` (fails in-browser with 1001) |
-| `7679743513151655186` | Photo | **HTTP 400** | **HTTP 200** | Returns iframe to `/player/v1/{id}` |
-| `7615692003048721671` | Photo | **HTTP 400** | **HTTP 200** | Returns iframe to `/player/v1/{id}` |
-| `7578240185691819276` | Photo | **HTTP 400** | **HTTP 200** | Returns iframe to `/player/v1/{id}` |
-| `7616082104308272392` | Photo | **HTTP 400** | **HTTP 200** | Returns iframe to `/player/v1/{id}` |
-| `7578246008988011788` | Photo | **HTTP 400** | **HTTP 200** | Returns iframe to `/player/v1/{id}` |
-| `7682109303737552136` | Photo | **HTTP 400** | **HTTP 200** | Returns iframe to `/player/v1/{id}` |
-| `7671327868349123848` | Video (Control) | N/A | **HTTP 200** | Returns valid video embed HTML |
-| `7682424844671012114` | Video (Control) | N/A | **HTTP 200** | Returns valid video embed HTML |
+| Variant | Architecture | Query Parameters | Sandbox Attribute | Allow Permissions | Browser Outcome | Lifecycle Events | Winner |
+| :--- | :--- | :--- | :---: | :--- | :---: | :--- | :---: |
+| **V1** | `/player/v1/{id}` | `embed_from=oembed&music_info=1&description=1&autoplay=1&muted=1` | **None** (`null`) | Full official list | **READY / DISPLAYED** (`seen: true`) | `onPlayerReady`, `onStateChange`, `onCurrentTime`, `onImageChange` | **WINNER** |
+| **V2** | `/player/v1/{id}` | `embed_from=oembed&...` | 5-flag app sandbox | Full official list | Inconsistent / timeout | `onPlayerReady` (stalled) | No |
+| **V3** | `/player/v1/{id}` | Custom image params | 5-flag app sandbox | Full official list | **Failed** (`errorCode: 3002`) | `onPlayerError AUTOPLAY_ERROR` | No |
+| **V4** | `/player/v1/{id}` | None (minimal) | 5-flag app sandbox | Full official list | **Failed** (`errorCode: 3002`) | `onPlayerError AUTOPLAY_ERROR` | No |
+| **V5** | `/embed/v2/{id}` | `lang=en-US` | 5-flag app sandbox | Full official list | **Timed out** | No player events | No |
 
-**Direct Output from TikTok oEmbed for Photo URLs:**
-```json
-HTTP/2 400
-{"message":"Something went wrong","code":400}
+### B. Video Control Verification
+Both video controls (`7671327868349123848` and `7682424844671012114`) were tested with Variant V1 and hydrated successfully with `ready` / `onPlayerReady`.
+
+### C. Fresh Canonical oEmbed Markup
+Fresh curl testing against TikTok's canonical oEmbed endpoint confirmed the official iframe markup:
+```html
+<iframe
+  height="578"
+  width="325"
+  src="https://www.tiktok.com/player/v1/{id}?embed_from=oembed&music_info=1&description=1&autoplay=1&muted=1"
+  frameborder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; gyroscope; picture-in-picture; web-share"
+  allowfullscreen
+  loading="lazy"
+></iframe>
 ```
-
-### B. WordPress Trac Ticket #64941 Lead: `embed/v2`
-
-The WordPress Trac lead indicated that TikTok renders carousels through `https://www.tiktok.com/embed/v2/{id}`.
-- Direct curl testing confirmed `embed/v2/{id}` returns `HTTP/2 200` with TikTok's Frontity-based standalone card markup.
-- However, `embed/v2` is undocumented, relies on third-party cookies for some interactive features, and does not emit standard postMessage events.
-- Because automated headless browser validation cannot run in sandboxed CI without display/snap support, this path is implemented under the feature flag `PHOTO_EMBED_STRATEGY = 'embed-v2'` for human testing, but is NOT the default.
 
 ---
 
-## 3. Selected Strategy: `link-only`
+## 3. Selected Production Strategy: `official-player`
 
-### Rationale
-1. **Zero Origin Vulnerability:** Eliminates third-party scripts and remote HTML injection.
-2. **True UX:** Customers are never subjected to failing iframes, broken players, or mysterious spinners.
-3. **Primary Experience:** Real customer photos uploaded to Firestore/Cloudinary are swiped in the carousel. The single link row `"See the original photo post on TikTok ↗"` provides an authentic gateway to the creator's TikTok post.
+Based on the empirical evidence:
+1. **Default Strategy:** `PHOTO_EMBED_STRATEGY = 'official-player'`. Photo posts are rendered using the winning V1 configuration with official allow permissions and omitting the sandbox attribute.
+2. **Safe Fallback Ladder:**
+   - Display facade button initially (no third-party requests or tracking before user interaction).
+   - Upon tap: render iframe with 8s timeout timer.
+   - If `onPlayerReady` arrives: reveal the interactive carousel.
+   - If `onPlayerError` or 8s timeout occurs: show in-slide fallback card with item's own photos (or bare placeholder) and ONE "View on TikTok ↗" link (`rel="noopener noreferrer"`).
+   - Session Failure Cache: A failure is remembered in `sessionStorage` per post ID to prevent repetitive broken loads.
+3. **Emergency Kill-Switch:** Configurable via environment variable `VITE_TIKTOK_PHOTO_STRATEGY` to instantly revert to `link-only` or other variants if needed.

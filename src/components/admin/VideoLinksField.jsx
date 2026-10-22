@@ -209,7 +209,7 @@ function VideoLinksField({
               </div>
             ) : (
               <p className="a-help-text a-photo-hint">
-                📸 Photo-mode post by @{validation.parsed.handle} (ID: ...{String(validation.parsed.id || '').slice(-4)}).
+                📸 Photo-mode post by @{validation.parsed.handle} (ID: ...{String(validation.parsed.id || '').slice(-4)}). Plays as an interactive photo gallery.
               </p>
             )
           ) : null}

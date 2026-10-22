@@ -377,10 +377,12 @@ test('buildEmbedV2Src strictly validates ID and builds canonical embed v2 URL', 
   assert.equal(buildEmbedV2Src(null), null)
 })
 
-test('PHOTO_EMBED_STRATEGY defaults to safe link-only', () => {
-  assert.ok(VALID_STRATEGIES.includes('link-only'))
+test('PHOTO_EMBED_STRATEGY defaults to official-player (V1 Winner)', () => {
+  assert.ok(VALID_STRATEGIES.includes('official-player'))
+  assert.ok(VALID_STRATEGIES.includes('official-player-sandboxed'))
+  assert.ok(VALID_STRATEGIES.includes('minimal-player'))
   assert.ok(VALID_STRATEGIES.includes('embed-v2'))
-  assert.ok(VALID_STRATEGIES.includes('player-v1'))
-  assert.equal(PHOTO_EMBED_STRATEGY, 'link-only')
-  assert.equal(isPhotoEmbedEnabled(), false)
+  assert.ok(VALID_STRATEGIES.includes('link-only'))
+  assert.equal(PHOTO_EMBED_STRATEGY, 'official-player')
+  assert.equal(isPhotoEmbedEnabled(), true)
 })

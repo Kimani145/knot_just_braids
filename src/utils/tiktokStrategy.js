@@ -2,20 +2,24 @@
  * src/utils/tiktokStrategy.js
  * Strategy selector for TikTok photo-mode post rendering.
  *
- * Strategies:
- * - 'link-only': (Default / Safe) No iframe embedding for photo posts. Renders customer
- *   images in the carousel, a calm 'See original photo post on TikTok ↗' link below,
- *   and MediaPlaceholder if no images exist.
- * - 'embed-v2': Renders https://www.tiktok.com/embed/v2/{id} in an isolated iframe.
- * - 'player-v1': Renders https://www.tiktok.com/player/v1/{id} with documented image parameters.
+ * Strategies correspond to profiles defined in src/utils/tiktokProfiles.js:
+ * - 'official-player': (Default - V1 Winner) Verified working profile without sandbox.
+ *   Uses official oEmbed query parameters and official allow permissions.
+ * - 'official-player-sandboxed': (V2) Official parameters with 5-flag sandbox.
+ * - 'minimal-player': (V4) Minimal player/v1 without custom query parameters.
+ * - 'embed-v2': (V5) Legacy embed/v2 endpoint.
+ * - 'link-only': Safe fallback; no iframe embedding.
  *
- * Re-test date: 2026-11-20 (review after owner runs human lab protocol)
+ * Verified empirically in lab testing on 2026-10-22 (docs/research/lab-logs/browser-2026-10-22.json).
+ * Re-test date: 2026-11-20
  */
 
-export const VALID_STRATEGIES = ['link-only', 'embed-v2', 'player-v1']
+import { TIKTOK_IFRAME_PROFILES } from './tiktokProfiles.js'
 
-// Safe default: link-only
-const DEFAULT_STRATEGY = 'link-only'
+export const VALID_STRATEGIES = Object.keys(TIKTOK_IFRAME_PROFILES)
+
+// V1 Winner: official-player verified in browser lab
+export const DEFAULT_STRATEGY = 'official-player'
 
 // Feature flag / kill-switch override via VITE_TIKTOK_PHOTO_STRATEGY
 const envStrategy =

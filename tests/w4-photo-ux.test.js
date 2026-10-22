@@ -12,9 +12,9 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { PHOTO_EMBED_STRATEGY, isPhotoEmbedEnabled } from '../src/utils/tiktokStrategy.js'
 
-test('W4: Strategy default is link-only and isPhotoEmbedEnabled is false', () => {
-  assert.equal(PHOTO_EMBED_STRATEGY, 'link-only')
-  assert.equal(isPhotoEmbedEnabled(), false)
+test('W4: Strategy default is official-player and isPhotoEmbedEnabled is true', () => {
+  assert.equal(PHOTO_EMBED_STRATEGY, 'official-player')
+  assert.equal(isPhotoEmbedEnabled(), true)
 })
 
 test('W4: ProductQuickView excludes photo posts from video slides under link-only strategy', () => {

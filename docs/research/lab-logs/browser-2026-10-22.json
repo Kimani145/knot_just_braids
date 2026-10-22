@@ -1,0 +1,462 @@
+{
+  "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+  "origin": "http://0.0.0.0:8080",
+  "ranAt": "2026-10-22T06:51:35.596Z",
+  "results": [
+    {
+      "variant": "V1",
+      "postId": "7681345289243905298",
+      "kind": "photo",
+      "firstMessageMs": 5197,
+      "events": [
+        "message",
+        "onPlayerReady",
+        "onMute",
+        "onVolumeChange",
+        "onStateChange",
+        "onCurrentTime"
+      ],
+      "error": null,
+      "seen": null,
+      "finish": "ready",
+      "loadEvent": true
+    },
+    {
+      "variant": "V1",
+      "postId": "7679743513151655186",
+      "kind": "photo",
+      "firstMessageMs": 1683,
+      "events": [
+        "message",
+        "onPlayerReady",
+        "onMute",
+        "onVolumeChange",
+        "onStateChange",
+        "onCurrentTime",
+        "onImageChange"
+      ],
+      "error": null,
+      "seen": true,
+      "finish": "ready",
+      "loadEvent": true
+    },
+    {
+      "variant": "V1",
+      "postId": "7681345289243905298",
+      "kind": "photo",
+      "firstMessageMs": 2812,
+      "events": [
+        "message",
+        "onPlayerReady"
+      ],
+      "error": null,
+      "seen": null,
+      "finish": "ready",
+      "loadEvent": true
+    },
+    {
+      "variant": "V2",
+      "postId": "7681345289243905298",
+      "kind": "photo",
+      "firstMessageMs": 2920,
+      "events": [
+        "message",
+        "onPlayerReady"
+      ],
+      "error": null,
+      "seen": null,
+      "finish": "ready",
+      "loadEvent": true
+    },
+    {
+      "variant": "V3",
+      "postId": "7681345289243905298",
+      "kind": "photo",
+      "firstMessageMs": 1264,
+      "events": [
+        "message",
+        "onPlayerReady",
+        "onError",
+        "onPlayerError",
+        "onMute",
+        "onVolumeChange"
+      ],
+      "error": "onPlayerError: {\"errorCode\":3002,\"errorType\":\"AUTOPLAY_ERROR\"}",
+      "seen": null,
+      "finish": "ready",
+      "loadEvent": true
+    },
+    {
+      "variant": "V4",
+      "postId": "7681345289243905298",
+      "kind": "photo",
+      "firstMessageMs": 1558,
+      "events": [
+        "message",
+        "onPlayerReady",
+        "onError",
+        "onPlayerError",
+        "onMute",
+        "onVolumeChange"
+      ],
+      "error": "onPlayerError: {\"errorCode\":3002,\"errorType\":\"AUTOPLAY_ERROR\"}",
+      "seen": null,
+      "finish": "ready",
+      "loadEvent": true
+    },
+    {
+      "variant": "V5",
+      "postId": "7681345289243905298",
+      "kind": "photo",
+      "firstMessageMs": 7971,
+      "events": [
+        "message"
+      ],
+      "error": null,
+      "seen": null,
+      "finish": "timeout-after-events",
+      "loadEvent": true
+    },
+    {
+      "variant": "V1",
+      "postId": "7679743513151655186",
+      "kind": "photo",
+      "firstMessageMs": 1265,
+      "events": [
+        "message",
+        "onPlayerReady"
+      ],
+      "error": null,
+      "seen": null,
+      "finish": "ready",
+      "loadEvent": true
+    },
+    {
+      "variant": "V2",
+      "postId": "7679743513151655186",
+      "kind": "photo",
+      "firstMessageMs": 1127,
+      "events": [
+        "message",
+        "onPlayerReady"
+      ],
+      "error": null,
+      "seen": null,
+      "finish": "ready",
+      "loadEvent": true
+    },
+    {
+      "variant": "V3",
+      "postId": "7679743513151655186",
+      "kind": "photo",
+      "firstMessageMs": 1154,
+      "events": [
+        "message",
+        "onPlayerReady",
+        "onError",
+        "onPlayerError",
+        "onMute",
+        "onVolumeChange"
+      ],
+      "error": "onPlayerError: {\"errorCode\":3002,\"errorType\":\"AUTOPLAY_ERROR\"}",
+      "seen": null,
+      "finish": "ready",
+      "loadEvent": true
+    },
+    {
+      "variant": "V4",
+      "postId": "7679743513151655186",
+      "kind": "photo",
+      "firstMessageMs": 1180,
+      "events": [
+        "message",
+        "onPlayerReady",
+        "onError",
+        "onPlayerError",
+        "onMute",
+        "onVolumeChange"
+      ],
+      "error": "onPlayerError: {\"errorCode\":3002,\"errorType\":\"AUTOPLAY_ERROR\"}",
+      "seen": null,
+      "finish": "ready",
+      "loadEvent": true
+    },
+    {
+      "variant": "V5",
+      "postId": "7679743513151655186",
+      "kind": "photo",
+      "firstMessageMs": 4002,
+      "events": [
+        "message"
+      ],
+      "error": null,
+      "seen": null,
+      "finish": "timeout-after-events",
+      "loadEvent": true
+    },
+    {
+      "variant": "V1",
+      "postId": "7615692003048721671",
+      "kind": "photo",
+      "firstMessageMs": 3598,
+      "events": [
+        "message",
+        "onPlayerReady"
+      ],
+      "error": null,
+      "seen": null,
+      "finish": "ready",
+      "loadEvent": true
+    },
+    {
+      "variant": "V2",
+      "postId": "7615692003048721671",
+      "kind": "photo",
+      "firstMessageMs": 2502,
+      "events": [
+        "message",
+        "onPlayerReady"
+      ],
+      "error": null,
+      "seen": null,
+      "finish": "ready",
+      "loadEvent": true
+    },
+    {
+      "variant": "V3",
+      "postId": "7615692003048721671",
+      "kind": "photo",
+      "firstMessageMs": 1455,
+      "events": [
+        "message",
+        "onPlayerReady",
+        "onError",
+        "onPlayerError",
+        "onMute",
+        "onVolumeChange"
+      ],
+      "error": "onPlayerError: {\"errorCode\":3002,\"errorType\":\"AUTOPLAY_ERROR\"}",
+      "seen": null,
+      "finish": "ready",
+      "loadEvent": true
+    },
+    {
+      "variant": "V4",
+      "postId": "7615692003048721671",
+      "kind": "photo",
+      "firstMessageMs": 2153,
+      "events": [
+        "message",
+        "onPlayerReady",
+        "onError",
+        "onPlayerError",
+        "onMute",
+        "onVolumeChange"
+      ],
+      "error": "onPlayerError: {\"errorCode\":3002,\"errorType\":\"AUTOPLAY_ERROR\"}",
+      "seen": null,
+      "finish": "ready",
+      "loadEvent": true
+    },
+    {
+      "variant": "V5",
+      "postId": "7615692003048721671",
+      "kind": "photo",
+      "firstMessageMs": null,
+      "events": [],
+      "error": null,
+      "seen": null,
+      "finish": "timeout-no-messages",
+      "loadEvent": false
+    },
+    {
+      "variant": "V1",
+      "postId": "7616082104308272392",
+      "kind": "photo",
+      "firstMessageMs": null,
+      "events": [],
+      "error": null,
+      "seen": null,
+      "finish": "timeout-no-messages",
+      "loadEvent": false
+    },
+    {
+      "variant": "V2",
+      "postId": "7616082104308272392",
+      "kind": "photo",
+      "firstMessageMs": null,
+      "events": [],
+      "error": null,
+      "seen": null,
+      "finish": "timeout-no-messages",
+      "loadEvent": false
+    },
+    {
+      "variant": "V3",
+      "postId": "7616082104308272392",
+      "kind": "photo",
+      "firstMessageMs": 1851,
+      "events": [
+        "message",
+        "onPlayerReady",
+        "onError",
+        "onPlayerError",
+        "onMute",
+        "onVolumeChange"
+      ],
+      "error": "onPlayerError: {\"errorCode\":3002,\"errorType\":\"AUTOPLAY_ERROR\"}",
+      "seen": null,
+      "finish": "ready",
+      "loadEvent": true
+    },
+    {
+      "variant": "V4",
+      "postId": "7616082104308272392",
+      "kind": "photo",
+      "firstMessageMs": 1251,
+      "events": [
+        "message",
+        "onPlayerReady",
+        "onError",
+        "onPlayerError",
+        "onMute",
+        "onVolumeChange"
+      ],
+      "error": "onPlayerError: {\"errorCode\":3002,\"errorType\":\"AUTOPLAY_ERROR\"}",
+      "seen": null,
+      "finish": "ready",
+      "loadEvent": true
+    },
+    {
+      "variant": "V5",
+      "postId": "7616082104308272392",
+      "kind": "photo",
+      "firstMessageMs": 2356,
+      "events": [
+        "message"
+      ],
+      "error": null,
+      "seen": null,
+      "finish": "timeout-after-events",
+      "loadEvent": true
+    },
+    {
+      "variant": "V1",
+      "postId": "7671327868349123848",
+      "kind": "video",
+      "firstMessageMs": 2874,
+      "events": [
+        "message",
+        "onPlayerReady",
+        "onMute",
+        "onVolumeChange"
+      ],
+      "error": null,
+      "seen": null,
+      "finish": "ready",
+      "loadEvent": true
+    },
+    {
+      "variant": "V2",
+      "postId": "7671327868349123848",
+      "kind": "video",
+      "firstMessageMs": 1877,
+      "events": [
+        "message",
+        "onPlayerReady",
+        "onMute",
+        "onVolumeChange"
+      ],
+      "error": null,
+      "seen": null,
+      "finish": "ready",
+      "loadEvent": true
+    },
+    {
+      "variant": "V3",
+      "postId": "7671327868349123848",
+      "kind": "video",
+      "firstMessageMs": 1392,
+      "events": [
+        "message"
+      ],
+      "error": null,
+      "seen": null,
+      "finish": "timeout-after-events",
+      "loadEvent": true
+    },
+    {
+      "variant": "V4",
+      "postId": "7671327868349123848",
+      "kind": "video",
+      "firstMessageMs": 1966,
+      "events": [
+        "message"
+      ],
+      "error": null,
+      "seen": null,
+      "finish": "timeout-after-events",
+      "loadEvent": true
+    },
+    {
+      "variant": "V5",
+      "postId": "7671327868349123848",
+      "kind": "video",
+      "firstMessageMs": null,
+      "events": [],
+      "error": null,
+      "seen": null,
+      "finish": "timeout-no-messages",
+      "loadEvent": true
+    },
+    {
+      "variant": "V1",
+      "postId": "7679743513151655186",
+      "kind": "photo",
+      "firstMessageMs": null,
+      "events": [],
+      "error": null,
+      "seen": null,
+      "finish": null,
+      "loadEvent": false
+    },
+    {
+      "variant": "V1",
+      "postId": "7679743513151655186",
+      "kind": "photo",
+      "firstMessageMs": 2532,
+      "events": [
+        "message",
+        "onPlayerReady",
+        "onMute",
+        "onVolumeChange",
+        "onStateChange",
+        "onCurrentTime",
+        "onImageChange"
+      ],
+      "error": null,
+      "seen": true,
+      "finish": "ready",
+      "loadEvent": true
+    },
+    {
+      "variant": "V1",
+      "postId": "7679743513151655186",
+      "kind": "photo",
+      "firstMessageMs": 9279,
+      "events": [
+        "message",
+        "onPlayerReady",
+        "onMute",
+        "onVolumeChange",
+        "onStateChange",
+        "onImageChange",
+        "onCurrentTime"
+      ],
+      "error": null,
+      "seen": true,
+      "finish": "timeout-no-messages",
+      "loadEvent": true
+    }
+  ]
+}
